@@ -1,0 +1,127 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  user_id        Int       @id @default(autoincrement())
+  username       String    @unique
+  email          String    @unique
+  password_hash  String
+  avatar_url     String?
+  created_at     DateTime  @default(now())
+  last_login     DateTime?
+  auth_provider  String?   // e.g., 'local', 'google', 'facebook'
+  role           String    @default("user")
+  is_active      Boolean   @default(true)
+  // Relations
+  followedStories   FollowedStories[]
+  favoriteStories   FavoriteStories[]
+  readHistories     ReadHistory[]
+  userActivities    UserActivities[]
+}
+
+model Story {
+  story_id         Int       @id @default(autoincrement())
+  title            String
+  description_short String?
+  description_long String
+  author           String
+  artist           String?
+  cover_image_url  String
+  status           String
+  view_count       Int       @default(0)
+  published_date   DateTime?
+  last_updated_at  DateTime  @default(now())
+  embedding_vector String?
+  // Relations
+  chapters         Chapter[]
+  storyGenres      StoryGenres[]
+  followedStories  FollowedStories[]
+  favoriteStories  FavoriteStories[]
+  readHistories    ReadHistory[]
+}
+
+model Chapter {
+  chapter_id     Int       @id @default(autoincrement())
+  story_id       Int
+  chapter_number Float
+  chapter_title  String?
+  published_at   DateTime  @default(now())
+  // Relations
+  story          Story     @relation(fields: [story_id], references: [story_id])
+  images         ChapterImage[]
+  readHistories  ReadHistory[]
+}
+
+model ChapterImage {
+  image_id     Int    @id @default(autoincrement())
+  chapter_id   Int
+  image_order  Int
+  image_url    String
+  // Relations
+  chapter      Chapter @relation(fields: [chapter_id], references: [chapter_id])
+}
+
+model Genre {
+  genre_id    Int      @id @default(autoincrement())
+  genre_name  String   @unique
+  storyGenres StoryGenres[]
+}
+
+model StoryGenres {
+  story_id  Int
+  genre_id  Int
+  // Relations
+  story     Story   @relation(fields: [story_id], references: [story_id])
+  genre     Genre   @relation(fields: [genre_id], references: [genre_id])
+  @@id([story_id, genre_id])
+}
+
+model FollowedStories {
+  user_id     Int
+  story_id    Int
+  followed_at DateTime @default(now())
+  // Relations
+  user        User  @relation(fields: [user_id], references: [user_id])
+  story       Story @relation(fields: [story_id], references: [story_id])
+  @@id([user_id, story_id])
+}
+
+model FavoriteStories {
+  user_id      Int
+  story_id     Int
+  favorited_at DateTime @default(now())
+  // Relations
+  user         User  @relation(fields: [user_id], references: [user_id])
+  story        Story @relation(fields: [story_id], references: [story_id])
+  @@id([user_id, story_id])
+}
+
+model ReadHistory {
+  history_id      Int      @id @default(autoincrement())
+  user_id         Int
+  story_id        Int
+  chapter_id      Int
+  last_read_page  Int?
+  read_at         DateTime @default(now())
+  // Relations
+  user            User     @relation(fields: [user_id], references: [user_id])
+  story           Story    @relation(fields: [story_id], references: [story_id])
+  chapter         Chapter  @relation(fields: [chapter_id], references: [chapter_id])
+}
+
+model UserActivities {
+  activity_id         Int      @id @default(autoincrement())
+  user_id             Int
+  activity_type       String
+  activity_description String?
+  activity_time       DateTime @default(now())
+  // Relations
+  user                User     @relation(fields: [user_id], references: [user_id])
+}
