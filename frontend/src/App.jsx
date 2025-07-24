@@ -6,6 +6,7 @@ import HomePage from "./pages/HomePage";
 import HistoryPage from "./pages/HistoryPage";
 import FollowPage from "./pages/FollowPage";
 import StoryDetailPage from "./pages/StoryDetailPage";
+import ChapterPage from "./pages/ChapterPage";
 import './index.css';
 
 function App() {
@@ -18,6 +19,7 @@ function App() {
             <Route path="/lich-su" element={<HistoryPage />} />
             <Route path="/theo-doi" element={<FollowPage />} />
             <Route path="/story/:id" element={<StoryDetailPage />} />
+            <Route path="/story/:id/chapter/:chapterNumber" element={<ChapterPage />} />
           </Routes>
           <Footer />
       </div>

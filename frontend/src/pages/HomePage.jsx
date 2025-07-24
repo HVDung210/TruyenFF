@@ -2,10 +2,11 @@ import React, { useRef } from "react";
 import StoryCard from "../components/StoryCard";
 import arrow_left from "../assets/arrow_left.png";
 import arrow_right from "../assets/arrow_right.png";
-import stories from "../utils/stories";
+import useStories from "../hooks/useStories";
 
 export default function HomePage() {
     const scrollRef = useRef(null);
+    const { stories, loading, error } = useStories();
 
     const scroll = (direction) => {
         if (scrollRef.current) {
@@ -15,6 +16,8 @@ export default function HomePage() {
             });
         }
     }
+    if (loading) return <div>Loading...</div>;
+    if (error) return <div>Error: {error.message}</div>;
   return (
     <div className="bg-gray-200 py-6 px-36">
       <span className="text-xl font-bold text-red-500">Truyện Hay</span>
