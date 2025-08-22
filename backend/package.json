@@ -3,12 +3,17 @@
     "start": "node src/server.js"
   },
   "dependencies": {
+    "@google-cloud/storage": "^7.16.0",
+    "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^6.10.1",
     "bcryptjs": "^3.0.2",
+    "canvas": "^3.1.2",
     "cors": "^2.8.5",
     "dotenv": "^17.0.0",
     "express": "^5.1.0",
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.2",
+    "sharp": "^0.34.3"
   },
   "devDependencies": {
     "nodemon": "^3.1.10",

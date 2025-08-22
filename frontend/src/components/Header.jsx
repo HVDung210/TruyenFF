@@ -11,7 +11,6 @@ import { useAuth } from "../context/AuthContext";
 
 export default function Header() {
   const { user, logout } = useAuth();
-  const [showDropdown, setShowDropdown] = useState(false);
   const [showAuth, setShowAuth] = useState("");
   const [showMenu, setShowMenu] = useState(false);
   const navigate = useNavigate();
@@ -97,24 +96,11 @@ export default function Header() {
       <nav>
         <div className="bg-orange-400 w-full">
           <div className="container mx-auto flex gap-x-12 px-36 py-3 text-white font-small text-base justify-start items-center overflow-x-auto">
-            <Link to="/" className="hover:bg-orange-300 text-md ">Trang Chủ</Link>
-            <div
-              className="relative"
-              onMouseEnter={() => setShowDropdown(true)}
-              onMouseLeave={() => setShowDropdown(false)}
-            >
-              <button className="flex items-center hover:bg-orange-300 text-md focus:outline-none">
-                Thể Loại
-                <img src={drop_down} className="w-4 h-4 mt-1 ml-1"></img>
-              </button>
-              {showDropdown && (
-                <div className="absolute">
-                </div>
-              )}
-            </div>
-            <Link to="/lich-su" className="hover:bg-orange-300 text-md ">Lịch Sử</Link>
-            <Link to="/theo-doi" className="hover:bg-orange-300 text-md ">Theo Dõi</Link>
-            <Link to="/tim-mo-ta" className="hover:bg-orange-300 text-md ">Tìm Mô Tả</Link>
+            <Link to="/" className="hover:bg-orange-300 text-md px-3 py-1 rounded">Trang Chủ</Link>
+            <Link to="/the-loai" className="hover:bg-orange-300 text-md px-3 py-1 rounded">Thể Loại</Link>
+            <Link to="/lich-su" className="hover:bg-orange-300 text-md px-3 py-1 rounded">Lịch Sử</Link>
+            <Link to="/theo-doi" className="hover:bg-orange-300 text-md px-3 py-1 rounded">Theo Dõi</Link>
+            <Link to="/tim-mo-ta" className="hover:bg-orange-300 text-md px-3 py-1 rounded">Tìm Mô Tả</Link>
           </div>
         </div>
       </nav>
