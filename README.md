@@ -2,16 +2,6 @@
 
 Ứng dụng web đọc truyện tranh với tính năng khác biệt: thu thập dữ liệu từ web truyện tranh khác, tìm kiếm truyện dựa trên mô tả văn bản, vẽ truyện tranh dựa trên văn bản truyện chữ.
 
-## 🚀 Tổng Quan Dự Án
-
-TruyenFF là ứng dụng full-stack chuyển đổi truyện chữ thành các panel truyện tranh trực quan. Nền tảng có các tính năng:
-
-- **Phân Tích Nội Dung Bằng AI**: Sử dụng Google Gemini AI để phân tích nội dung truyện và chia thành các panel truyện tranh
-- **Sinh Hình Ảnh Thông Minh**: Tạo ra các panel truyện tranh nhất quán sử dụng mô hình Hugging Face Stable Diffusion
-- **Tính Nhất Quán Nhân Vật**: Duy trì tính nhất quán hình ảnh xuyên suốt tất cả các panel cho cùng một nhân vật
-- **Web Crawler**: Thu thập dữ liệu tự động từ các trang web truyện tiếng Việt
-- **Giao Diện Web Hiện Đại**: Frontend React với khả năng xử lý thời gian thực
-
 ## 📸 Giao Diện Web
 
 ### 1. Trang Chủ
