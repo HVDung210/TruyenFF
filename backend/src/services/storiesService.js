@@ -59,7 +59,7 @@ const chapterFileMap = {
 async function listChapters(storyId) {
   const fileName = chapterFileMap[storyId];
   if (!fileName) return null;
-  const dataPath = path.join(__dirname, '../../crawler/story_chapter/', fileName);
+  const dataPath = path.join(__dirname, '../../../crawler/story_chapter/', fileName);
   const data = await fs.promises.readFile(dataPath, 'utf8');
   return JSON.parse(data);
 }
@@ -70,12 +70,30 @@ async function getChapter(storyId, chapterNumber) {
   return chapters.find(c => c.chapter.replace('Chương ', '').replace('Chapter ', '') == chapterNumber);
 }
 
+async function searchStories(query) {
+  const stories = await listStories();
+  const searchTerm = query.toLowerCase();
+  
+  const filtered = stories.filter(story => {
+    if (story.title && story.title.toLowerCase().includes(searchTerm)) return true;
+    return false;
+  });
+  
+  return {
+    query: query,
+    total: filtered.length,
+    stories: filtered
+  };
+}
+
+
 module.exports = {
   listStories,
   getStoriesByGenre,
   getStoryById,
   listChapters,
   getChapter,
+  searchStories,
 };
 
 

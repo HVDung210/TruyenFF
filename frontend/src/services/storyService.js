@@ -66,4 +66,14 @@ export const storyService = {
     }
     return response.json();
   },
+
+  // Simple text search by title
+  searchStories: async (query) => {
+    const url = `${API_BASE_URL}/stories/search?q=${encodeURIComponent(query)}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to search stories: ${response.statusText}`);
+    }
+    return response.json();
+  },
 };

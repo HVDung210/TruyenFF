@@ -1,12 +1,24 @@
 import React, { useState } from "react";
 import StoryCard from "../components/StoryCard";
-import { useSearchStoriesMutation } from "../hooks/useStoriesQuery";
+import { useSearchStoriesMutation, usePrefetchStories } from "../hooks/useStoriesQuery";
 
 export default function FindByDescriptionPage() {
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState({ stories: [], reasoning: [] });
   
   const searchMutation = useSearchStoriesMutation();
+  const { prefetchStory, prefetchChapters, prefetchChapter } = usePrefetchStories();
+
+  // Prefetch data khi click vào story
+  const handleStoryClick = (story) => {
+    prefetchStory(story.id);
+    prefetchChapters(story.id);
+    
+    // Prefetch chapter mới nhất nếu có
+    if (story.chapter_count) {
+      prefetchChapter(story.id, story.chapter_count);
+    }
+  };
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -92,7 +104,7 @@ export default function FindByDescriptionPage() {
       {/* Results Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
         {stories.map(story => (
-          <StoryCard key={story.id} story={story} />
+          <StoryCard key={story.id} story={story} onStoryClick={handleStoryClick} />
         ))}
       </div>
 

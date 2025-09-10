@@ -52,6 +52,17 @@ async function getChapterByNumber(req, res) {
   }
 }
 
+async function searchStories(req, res) {
+  try {
+    const q = (req.query.q || '').trim();
+    if (!q) return res.json({ query: '', total: 0, stories: [] });
+    const result = await storiesService.searchStories(q);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: 'Không tìm kiếm được truyện' });
+  }
+}
+
 module.exports = {
   getRoot,
   getStories,
@@ -59,6 +70,7 @@ module.exports = {
   getStoryById,
   getChapters,
   getChapterByNumber,
+  searchStories,
 };
 
 

@@ -1,19 +1,65 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useRef } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import logo from "../assets/logo.png";
-import light_mode from "../assets/light_mode.png";
-import drop_down from "../assets/drop_down.png";
 import search from "../assets/search.png";
 import avatar from "../assets/avatar.png";
 import notification from "../assets/notification.png";
 import AuthModal from "./AuthModal";
 import { useAuth } from "../context/AuthContext";
+import SearchResultCard from "./SearchResultCard";
+import { storyService } from "../services/storyService";
+import { usePrefetchStories } from "../hooks/useStoriesQuery";
 
 export default function Header() {
   const { user, logout } = useAuth();
   const [showAuth, setShowAuth] = useState("");
   const [showMenu, setShowMenu] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const searchRef = useRef(null);
+  const { prefetchStory, prefetchChapters, prefetchChapter } = usePrefetchStories();
+
+  // Debounced search
+  useEffect(() => {
+    if (!query || query.trim().length < 2) {
+      setResults([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await storyService.searchStories(query.trim());
+        setResults(res?.stories || []);
+      } catch (e) {
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  // Click outside to close dropdown
+  useEffect(() => {
+    function onClickOutside(e) {
+      if (searchRef.current && !searchRef.current.contains(e.target)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  // Close dropdown and clear query on route change to avoid flicker
+  useEffect(() => {
+    setShowDropdown(false);
+    setQuery("");
+  }, [location.pathname]);
 
   return (
     <header className="bg-white shadow">
@@ -28,12 +74,14 @@ export default function Header() {
               <span className="text-orange-400">FF</span>
             </Link>
           </span>
-          <img src={light_mode} alt="Light Mode" className="h-10"/>
         </div>
-        <div className="flex items-center gap-4 flex-1 ml-4 relative">
-          <div className="relative w-120">
+        <div className="flex items-center gap-4 flex-1 ml-4 relative" ref={searchRef}>
+          <div className="relative w-120" >
             <input
               type="text"
+              value={query}
+              onChange={(e) => { setQuery(e.target.value); setShowDropdown(true); }}
+              onFocus={() => setShowDropdown(true)}
               placeholder="Bạn muốn tìm truyện gì..."
               className="w-full px-5 py-2 border border-gray-300 rounded-3xl focus:outline-none focus:ring-2 focus:ring-blue-400 pr-12"
             />
@@ -41,7 +89,30 @@ export default function Header() {
               src={search}
               alt="Search"
               className="absolute top-1/2 right-4 transform -translate-y-1/2 h-6 w-6 cursor-pointer"
+              onClick={() => setShowDropdown((v) => !v)}
             />
+
+            {showDropdown && (loading || (query.trim().length >= 2 && results.length >= 0)) && (
+              <div className="absolute left-0 top-full mt-2 w-full bg-white shadow-lg rounded-md z-50 max-h-96 overflow-auto border border-gray-100">
+                {loading && (
+                  <div className="p-3 text-sm text-gray-500">Đang tìm...</div>
+                )}
+                {!loading && query.trim().length >= 2 && results.length === 0 && (
+                  <div className="p-3 text-sm text-gray-500">Không tìm thấy kết quả</div>
+                )}
+                {!loading && results.length > 0 && results.slice(0, 8).map((story) => (
+                  <SearchResultCard 
+                    key={story.id} 
+                    story={story}
+                    onMouseEnter={() => {
+                      prefetchStory(story.id);
+                      prefetchChapters(story.id);
+                      if (story.chapter_count) prefetchChapter(story.id, story.chapter_count);
+                    }}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
         {!user ? (
@@ -103,6 +174,7 @@ export default function Header() {
             <Link to="/tim-mo-ta" className="hover:bg-orange-300 text-md px-3 py-1 rounded">Tìm Mô Tả</Link>
           </div>
         </div>
+        {/* Dropdown is rendered near the search input above */}
       </nav>
     </header>
   );

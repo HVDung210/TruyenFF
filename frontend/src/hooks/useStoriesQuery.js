@@ -15,14 +15,16 @@ export function useStories() {
   return useQuery({
     queryKey: [QUERY_KEYS.STORIES],
     queryFn: storyService.getAllStories,
-    // Tăng thời gian cache để giảm refetch
     staleTime: 10 * 60 * 1000, // 10 phút
     cacheTime: 30 * 60 * 1000, // 30 phút
-    // Giữ data cũ khi refetch để tránh loading state
     keepPreviousData: true,
-    // Retry configuration
     retry: 3,
     retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
+    // FIX: Không refetch liên tục
+    refetchOnMount: false, // Thay đổi từ 'always' thành false
+    refetchOnWindowFocus: false,
+    // Chỉ refetch khi thực sự cần
+    refetchInterval: false,
   });
 }
 
@@ -32,11 +34,9 @@ export function useStoriesByGenre(genre) {
     queryKey: [QUERY_KEYS.STORIES_BY_GENRE, genre],
     queryFn: () => storyService.getStoriesByGenre(genre),
     enabled: !!genre && genre !== 'Tất cả',
-    staleTime: 10 * 60 * 1000, // 10 phút
-    cacheTime: 30 * 60 * 1000, // 30 phút
-    // Giữ data cũ khi switch genre
+    staleTime: 10 * 60 * 1000,
+    cacheTime: 30 * 60 * 1000,
     keepPreviousData: true,
-    // Background refetch để update data mà không show loading
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     retry: 3,
@@ -46,13 +46,24 @@ export function useStoriesByGenre(genre) {
 
 // Hook để lấy chi tiết truyện
 export function useStory(id) {
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: [QUERY_KEYS.STORY, id],
     queryFn: () => storyService.getStoryById(id),
     enabled: !!id,
-    staleTime: 15 * 60 * 1000, // 15 phút cho story details
-    cacheTime: 60 * 60 * 1000, // 1 giờ
+    staleTime: 15 * 60 * 1000,
+    cacheTime: 60 * 60 * 1000,
     keepPreviousData: true,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    initialData: () => {
+      const allStories = queryClient.getQueryData([QUERY_KEYS.STORIES]);
+      if (Array.isArray(allStories)) {
+        const numericId = Number(id);
+        return allStories.find(s => s.id === numericId);
+      }
+      return undefined;
+    },
   });
 }
 
@@ -65,6 +76,9 @@ export function useStoryChapters(storyId) {
     staleTime: 10 * 60 * 1000,
     cacheTime: 30 * 60 * 1000,
     keepPreviousData: true,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    initialData: [],
   });
 }
 
@@ -74,9 +88,11 @@ export function useChapter(storyId, chapterNumber) {
     queryKey: [QUERY_KEYS.CHAPTER, storyId, chapterNumber],
     queryFn: () => storyService.getChapter(storyId, chapterNumber),
     enabled: !!(storyId && chapterNumber),
-    staleTime: 30 * 60 * 1000, // 30 phút cho chapter content
-    cacheTime: 2 * 60 * 60 * 1000, // 2 giờ
+    staleTime: 30 * 60 * 1000,
+    cacheTime: 2 * 60 * 60 * 1000,
     keepPreviousData: true,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -107,6 +123,10 @@ export function usePrefetchStories() {
   const queryClient = useQueryClient();
 
   const prefetchStory = (id) => {
+    // Kiểm tra xem data đã có trong cache chưa
+    const existingData = queryClient.getQueryData([QUERY_KEYS.STORY, id]);
+    if (existingData) return; // Không prefetch nếu đã có data
+
     queryClient.prefetchQuery({
       queryKey: [QUERY_KEYS.STORY, id],
       queryFn: () => storyService.getStoryById(id),
@@ -115,6 +135,9 @@ export function usePrefetchStories() {
   };
 
   const prefetchChapter = (storyId, chapterNumber) => {
+    const existingData = queryClient.getQueryData([QUERY_KEYS.CHAPTER, storyId, chapterNumber]);
+    if (existingData) return;
+
     queryClient.prefetchQuery({
       queryKey: [QUERY_KEYS.CHAPTER, storyId, chapterNumber],
       queryFn: () => storyService.getChapter(storyId, chapterNumber),
@@ -123,6 +146,9 @@ export function usePrefetchStories() {
   };
 
   const prefetchChapters = (storyId) => {
+    const existingData = queryClient.getQueryData([QUERY_KEYS.CHAPTERS, storyId]);
+    if (existingData) return;
+
     queryClient.prefetchQuery({
       queryKey: [QUERY_KEYS.CHAPTERS, storyId],
       queryFn: () => storyService.getStoryChapters(storyId),
@@ -131,7 +157,6 @@ export function usePrefetchStories() {
   };
 
   const prefetchStoriesByGenre = (genre) => {
-    // Tránh prefetch nếu đã có trong cache
     const existingData = queryClient.getQueryData([QUERY_KEYS.STORIES_BY_GENRE, genre]);
     if (existingData) return;
 
@@ -142,11 +167,14 @@ export function usePrefetchStories() {
     });
   };
 
-  // Prefetch multiple genres cùng lúc (cho popular genres)
+  // Prefetch multiple genres cùng lúc - với throttling
   const prefetchPopularGenres = () => {
     const popularGenres = ['Action', 'Romance', 'Fantasy', 'Comedy', 'Drama'];
-    popularGenres.forEach(genre => {
-      prefetchStoriesByGenre(genre);
+    popularGenres.forEach((genre, index) => {
+      // Delay mỗi request để tránh quá tải
+      setTimeout(() => {
+        prefetchStoriesByGenre(genre);
+      }, index * 100);
     });
   };
 
@@ -158,6 +186,7 @@ export function usePrefetchStories() {
     prefetchPopularGenres 
   };
 }
+
 
 // Hook để invalidate và refetch data
 export function useRefreshData() {

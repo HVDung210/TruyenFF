@@ -14,7 +14,7 @@ export default function GenrePage() {
   
   const { data: allStories = [], isLoading: isLoadingAllStories, error: allStoriesError, isFetching: isFetchingAll } = useStories();
   const { data: genreStories = [], isLoading: isLoadingGenreStories, error: genreStoriesError, isFetching: isFetchingGenre } = useStoriesByGenre(selectedGenre);
-  const { prefetchStory, prefetchChapters, prefetchStoriesByGenre } = usePrefetchStories();
+  const { prefetchStory, prefetchChapters, prefetchChapter, prefetchStoriesByGenre } = usePrefetchStories();
 
   // Danh sách các thể loại truyện cập nhật từ dữ liệu thực tế
   const genres = [
@@ -74,6 +74,11 @@ export default function GenrePage() {
   const handleStoryHover = (story) => {
     prefetchStory(story.id);
     prefetchChapters(story.id);
+    
+    // Prefetch chapter mới nhất nếu có
+    if (story.chapter_count) {
+      prefetchChapter(story.id, story.chapter_count);
+    }
   };
 
   if (currentError) {
@@ -175,7 +180,7 @@ export default function GenrePage() {
                 onMouseEnter={() => handleStoryHover(story)}
                 className="transform transition-transform duration-200 hover:scale-105"
               >
-                <StoryCard story={story} />
+                <StoryCard story={story} onStoryClick={handleStoryHover} />
               </div>
             ))}
           </div>

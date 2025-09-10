@@ -12,6 +12,17 @@ TruyenFF là ứng dụng full-stack chuyển đổi truyện chữ thành các 
 - **Web Crawler**: Thu thập dữ liệu tự động từ các trang web truyện tiếng Việt
 - **Giao Diện Web Hiện Đại**: Frontend React với khả năng xử lý thời gian thực
 
+## 📸 Giao Diện Web
+
+### 1. Trang Chủ
+![Trang Chủ](/frontend/src/assets/home_page.png)
+
+### 2. Trang Chi Tiết Truyện  
+![Chi Tiết Truyện](/frontend/src/assets/story_detail_page.png)
+
+### 3. Trang Đọc Chương
+![Đọc Chương](/frontend/src/assets/chapter_page.png)
+
 ## 🏗️ Kiến Trúc
 
 Dự án bao gồm ba thành phần chính:

@@ -13,8 +13,8 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
       // Retry 1 lần nếu lỗi
       retry: 1,
-      // Background refetch để data luôn fresh
-      refetchOnMount: 'always',
+      // Không ép refetch khi component mount lại để tránh nháy
+      refetchOnMount: false,
     },
   },
 });

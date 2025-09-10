@@ -124,7 +124,7 @@ async function uploadSinglePanelToGcs(req, res) {
     }
     const timestamp = Date.now();
     const compressed = panel.image_generation.compressed ? '-compressed' : '';
-    const panelFileName = `panel-${panel.panel_id}-${timestamp}${compressed}.png`;
+    const panelFileName = `${panel.panel_id}.jpg`;
     const gcsPath = `${storyNameFormatted}/${chapterFormatted}/${panelFileName}`;
     const gcsUrl = await uploadBase64ToGCSWithRetry(cleanBase64, gcsPath, 3);
     const uploadedPanel = { ...panel, gcs_upload: { success: true, public_url: gcsUrl, gcs_path: gcsPath, filename: panelFileName, upload_time: new Date().toISOString(), image_size_mb: (imageSizeBytes / 1024 / 1024).toFixed(2), payload_size_mb: (payloadSize / 1024 / 1024).toFixed(2), compressed: panel.image_generation.compressed || false, retry_count: retryAttempt } };

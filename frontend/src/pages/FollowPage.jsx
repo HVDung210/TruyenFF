@@ -5,12 +5,17 @@ import { useStories, usePrefetchStories } from "../hooks/useStoriesQuery";
 
 export default function FollowPage() {
     const { data: stories = [], isLoading, error, isFetching } = useStories();
-    const { prefetchStory, prefetchChapters } = usePrefetchStories();
+    const { prefetchStory, prefetchChapters, prefetchChapter } = usePrefetchStories();
 
     // Prefetch data khi hover vào story card
   const handleStoryHover = (story) => {
     prefetchStory(story.id);
     prefetchChapters(story.id);
+    
+    // Prefetch chapter mới nhất nếu có
+    if (story.chapter_count) {
+      prefetchChapter(story.id, story.chapter_count);
+    }
   };
 
   // Show error state
@@ -48,7 +53,7 @@ export default function FollowPage() {
                       key={story.id}
                       className="transform transition-transform duration-200 hover:scale-105"
                     >
-                      <StoryCard story={story} />
+                      <StoryCard story={story} onStoryClick={handleStoryHover} />
                     </div>
                 ))}
             </div>

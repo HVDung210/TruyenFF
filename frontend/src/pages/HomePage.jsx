@@ -8,7 +8,7 @@ import { useStories, usePrefetchStories } from "../hooks/useStoriesQuery";
 export default function HomePage() {
   const scrollRef = useRef(null);
   const { data: stories = [], isLoading, error, isFetching } = useStories();
-  const { prefetchStory, prefetchChapters } = usePrefetchStories();
+  const { prefetchStory, prefetchChapters, prefetchChapter } = usePrefetchStories();
 
   const scroll = (direction) => {
     if (scrollRef.current) {
@@ -19,10 +19,16 @@ export default function HomePage() {
     }
   };
 
-  // Prefetch data khi hover vào story card
-  const handleStoryHover = (story) => {
+  // Prefetch data khi click vào story title hoặc chapter
+  const handleStoryClick = (story) => {
+    // Prefetch tất cả dữ liệu cần thiết
     prefetchStory(story.id);
     prefetchChapters(story.id);
+    
+    // Prefetch chapter mới nhất nếu có
+    if (story.chapter_count) {
+      prefetchChapter(story.id, story.chapter_count);
+    }
   };
 
   // Show error state
@@ -53,7 +59,7 @@ export default function HomePage() {
           Đang cập nhật...
         </div>
       )}
-
+      
       <span className="text-xl font-bold text-red-500">Truyện Hay</span>
       <div className="relative mt-4">
         <div className="relative overflow-hidden">
@@ -70,12 +76,12 @@ export default function HomePage() {
             style={{ scrollBehavior: "smooth" }}
           >
             {stories.filter(story => story.hot).map((story) => (
-              <div 
+              <StoryCard 
                 key={story.id}
-                onMouseEnter={() => handleStoryHover(story)}
-              >
-                <StoryCard story={story} fixed />
-              </div>
+                story={story} 
+                fixed 
+                onStoryClick={handleStoryClick}
+              />
             ))}
           </div>
           <button
@@ -89,15 +95,17 @@ export default function HomePage() {
       </div>
       
       <div className="py-10">
-        <span className="text-xl text-blue-400 font-bold">Truyện Mới Cập Nhật</span>
+        <span className="text-xl text-blue-400 font-bold">Tất Cả Truyện</span>
         <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
           {stories.map((story) => (
             <div 
               key={story.id}
-              onMouseEnter={() => handleStoryHover(story)}
               className="transform transition-transform duration-200 hover:scale-105"
             >
-              <StoryCard story={story} />
+              <StoryCard 
+                story={story} 
+                onStoryClick={handleStoryClick}
+              />
             </div>
           ))}
         </div>
