@@ -20,8 +20,8 @@ TruyenFF là ứng dụng full-stack chuyển đổi truyện chữ thành các 
 ### 2. Trang Chi Tiết Truyện  
 ![Chi Tiết Truyện](/frontend/src/assets/story_detail_page.png)
 
-### 3. Trang Đọc Chương
-![Đọc Chương](/frontend/src/assets/chapter_page.png)
+### 3. Trang Đọc Truyện
+![Đọc Truyện](/frontend/src/assets/chapter_page.png)
 
 ## 🏗️ Kiến Trúc
 
@@ -164,7 +164,5 @@ npm run dev
 4. **Sinh Hình Ảnh**: Sinh các panel truyện tranh nhất quán sử dụng mô hình AI
 5. **Thêm Lời Thoại**: Thêm bong bóng thoại và văn bản lên hình ảnh
 6. **Cloud Storage**: Upload hình ảnh cuối cùng lên Google Cloud Storage
-7. **Lắp Ráp Truyện Tranh**: Tạo layout truyện tranh cuối cùng với thứ tự phù hợp
 
 
-**TruyenFF** - Chuyển đổi truyện chữ thành câu chuyện trực quan với công nghệ AI.
