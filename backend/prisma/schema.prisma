@@ -13,7 +13,6 @@ model User {
   username       String    @unique
   email          String    @unique
   password_hash  String
-  avatar_url     String?
   created_at     DateTime  @default(now())
   last_login     DateTime?
   auth_provider  String?   // e.g., 'local', 'google', 'facebook'
@@ -29,16 +28,16 @@ model User {
 model Story {
   story_id         Int       @id @default(autoincrement())
   title            String
-  description_short String?
-  description_long String
-  author           String
-  artist           String?
-  cover_image_url  String
+  description      String    // Changed from description_long to description
+  author           String    // Single author only
+  cover            String    // Changed from cover_image_url to cover
   status           String
+  chapter_count    Int       // Added chapter_count field
   view_count       Int       @default(0)
+  hot              Boolean   @default(false) // Added hot field
+  time             String?   // Last update time as string (e.g., "2 Giờ Trước")
   published_date   DateTime?
   last_updated_at  DateTime  @default(now())
-  embedding_vector String?
   // Relations
   chapters         Chapter[]
   storyGenres      StoryGenres[]
@@ -50,8 +49,8 @@ model Story {
 model Chapter {
   chapter_id     Int       @id @default(autoincrement())
   story_id       Int
-  chapter_number Float
-  chapter_title  String?
+  chapter_number Int       // Changed from Float to Int
+  chapter_title  String?   // Chapter title like "Chương 1"
   published_at   DateTime  @default(now())
   // Relations
   story          Story     @relation(fields: [story_id], references: [story_id])

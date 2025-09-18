@@ -21,6 +21,9 @@ const GCS_CREDENTIALS = process.env.GOOGLE_APPLICATION_CREDENTIALS || './path/to
 const GCS_BUCKET = process.env.GCS_BUCKET || 'your-bucket-name';
 const GCS_BUCKET_NAME = process.env.GCS_BUCKET_NAME || process.env.GCS_BUCKET || 'truyenff-images';
 
+// JWT Secret
+const JWT_SECRET = process.env.JWT_SECRET || '040c52602904583bdf80ac4f18de14d6e3b30b39381d08d94c6bbb4c8445fcdb8041bad086440355a0c5a57efcd7dcf03a894fcf279f6167ec64a033916ca7c6';
+
 module.exports = {
   PORT,
   BODY_LIMIT,
@@ -33,6 +36,7 @@ module.exports = {
   GCS_CREDENTIALS,
   GCS_BUCKET,
   GCS_BUCKET_NAME,
+  JWT_SECRET,
 };
 
 

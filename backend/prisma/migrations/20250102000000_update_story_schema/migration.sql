@@ -1,10 +1,21 @@
+-- Drop existing tables in reverse dependency order
+DROP TABLE IF EXISTS "UserActivities" CASCADE;
+DROP TABLE IF EXISTS "ReadHistory" CASCADE;
+DROP TABLE IF EXISTS "FavoriteStories" CASCADE;
+DROP TABLE IF EXISTS "FollowedStories" CASCADE;
+DROP TABLE IF EXISTS "StoryGenres" CASCADE;
+DROP TABLE IF EXISTS "ChapterImage" CASCADE;
+DROP TABLE IF EXISTS "Chapter" CASCADE;
+DROP TABLE IF EXISTS "Story" CASCADE;
+DROP TABLE IF EXISTS "Genre" CASCADE;
+DROP TABLE IF EXISTS "User" CASCADE;
+
 -- CreateTable
 CREATE TABLE "User" (
     "user_id" SERIAL NOT NULL,
     "username" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "password_hash" TEXT NOT NULL,
-    "avatar_url" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "last_login" TIMESTAMP(3),
     "auth_provider" TEXT,
@@ -18,16 +29,16 @@ CREATE TABLE "User" (
 CREATE TABLE "Story" (
     "story_id" SERIAL NOT NULL,
     "title" TEXT NOT NULL,
-    "description_short" TEXT,
-    "description_long" TEXT NOT NULL,
+    "description" TEXT NOT NULL,
     "author" TEXT NOT NULL,
-    "artist" TEXT,
-    "cover_image_url" TEXT NOT NULL,
+    "cover" TEXT NOT NULL, -- Changed from cover_image_url to cover
     "status" TEXT NOT NULL,
+    "chapter_count" INTEGER NOT NULL,
     "view_count" INTEGER NOT NULL DEFAULT 0,
+    "hot" BOOLEAN NOT NULL DEFAULT false,
+    "time" TEXT, -- Last update time as string (e.g., "2 Giờ Trước")
     "published_date" TIMESTAMP(3),
     "last_updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "embedding_vector" TEXT,
 
     CONSTRAINT "Story_pkey" PRIMARY KEY ("story_id")
 );
@@ -36,8 +47,8 @@ CREATE TABLE "Story" (
 CREATE TABLE "Chapter" (
     "chapter_id" SERIAL NOT NULL,
     "story_id" INTEGER NOT NULL,
-    "chapter_number" DOUBLE PRECISION NOT NULL,
-    "chapter_title" TEXT,
+    "chapter_number" INTEGER NOT NULL, -- Changed from DOUBLE to INTEGER
+    "chapter_title" TEXT, -- Chapter title like "Chương 1"
     "published_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "Chapter_pkey" PRIMARY KEY ("chapter_id")
@@ -118,6 +129,18 @@ CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Genre_genre_name_key" ON "Genre"("genre_name");
+
+-- CreateIndex
+CREATE INDEX "Story_hot_idx" ON "Story"("hot");
+
+-- CreateIndex
+CREATE INDEX "Story_status_idx" ON "Story"("status");
+
+-- CreateIndex
+CREATE INDEX "Chapter_story_id_idx" ON "Chapter"("story_id");
+
+-- CreateIndex
+CREATE INDEX "ChapterImage_chapter_id_idx" ON "ChapterImage"("chapter_id");
 
 -- AddForeignKey
 ALTER TABLE "Chapter" ADD CONSTRAINT "Chapter_story_id_fkey" FOREIGN KEY ("story_id") REFERENCES "Story"("story_id") ON DELETE RESTRICT ON UPDATE CASCADE;

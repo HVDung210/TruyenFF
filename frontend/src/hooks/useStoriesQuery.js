@@ -21,7 +21,7 @@ export function useStories() {
     retry: 3,
     retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
     // FIX: Không refetch liên tục
-    refetchOnMount: false, // Thay đổi từ 'always' thành false
+    refetchOnMount: false, 
     refetchOnWindowFocus: false,
     // Chỉ refetch khi thực sự cần
     refetchInterval: false,
@@ -46,7 +46,6 @@ export function useStoriesByGenre(genre) {
 
 // Hook để lấy chi tiết truyện
 export function useStory(id) {
-  const queryClient = useQueryClient();
   return useQuery({
     queryKey: [QUERY_KEYS.STORY, id],
     queryFn: () => storyService.getStoryById(id),
@@ -56,14 +55,7 @@ export function useStory(id) {
     keepPreviousData: true,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
-    initialData: () => {
-      const allStories = queryClient.getQueryData([QUERY_KEYS.STORIES]);
-      if (Array.isArray(allStories)) {
-        const numericId = Number(id);
-        return allStories.find(s => s.id === numericId);
-      }
-      return undefined;
-    },
+    
   });
 }
 
@@ -78,7 +70,6 @@ export function useStoryChapters(storyId) {
     keepPreviousData: true,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
-    initialData: [],
   });
 }
 

@@ -1,11 +1,21 @@
-const path = require('path');
-const fs = require('fs');
+const { PrismaClient } = require('../generated/prisma');
 const { getGeminiModel } = require('../config/gemini');
 
+const prisma = new PrismaClient();
+
 async function llmSearch(query) {
-  const dataPath = path.join(__dirname, '..', 'stories.json');
-  const storiesData = await fs.promises.readFile(dataPath, 'utf8');
-  const stories = JSON.parse(storiesData);
+  const stories = await prisma.story.findMany({
+    include: {
+      storyGenres: {
+        include: {
+          genre: true
+        }
+      }
+    },
+    orderBy: {
+      story_id: 'asc'
+    }
+  });
 
   const prompt = `Bạn là chuyên gia truyện tranh. Với yêu cầu: "${query}"
       Hãy phân tích và trả về kết quả theo định dạng JSON sau:
@@ -20,10 +30,10 @@ async function llmSearch(query) {
 
       Danh sách truyện:
       ${stories.map((story) =>
-        `id: ${story.id}
+        `id: ${story.story_id}
       Tên: ${story.title}
       Mô tả: ${story.description}
-      Thể loại: ${story.genres.join(', ')}`
+      Thể loại: ${story.storyGenres.map(sg => sg.genre.genre_name).join(', ')}`
       ).join('\n\n')}
       `;
 
@@ -58,7 +68,7 @@ async function llmSearch(query) {
     throw new Error('Lỗi xử lý kết quả tìm kiếm');
   }
 
-  const matchedStories = stories.filter(story => ids.includes(story.id));
+  const matchedStories = stories.filter(story => ids.includes(story.story_id));
   console.log('\n=== KẾT QUẢ TÌM KIẾM ===');
   console.log('Query:', query);
   console.log('IDs được chọn:', ids);
@@ -67,7 +77,22 @@ async function llmSearch(query) {
     console.log(`${index + 1}. ${reason}`);
   });
   console.log('========================\n');
-  return { stories: matchedStories, reasoning: reasoning || [], query };
+  
+  // Transform to match original format
+  const transformedStories = matchedStories.map(story => ({
+    id: story.story_id,
+    title: story.title,
+    author: story.author,
+    status: story.status,
+    genres: story.storyGenres.map(sg => sg.genre.genre_name),
+    description: story.description,
+    chapter_count: story.chapter_count,
+    cover: story.cover,
+    time: story.time,
+    hot: story.hot
+  }));
+  
+  return { stories: transformedStories, reasoning: reasoning || [], query };
 }
 
 module.exports = { llmSearch };
