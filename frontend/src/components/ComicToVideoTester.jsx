@@ -208,7 +208,6 @@ const ComicToVideoTester = () => {
                           <div><strong>Tổng khung:</strong> {result.data.panelCount}</div>
                           <div><strong>Kích thước:</strong> {result.data.width} x {result.data.height}</div>
                           <div><strong>Thời gian xử lý:</strong> {result.data.processingTime}ms</div>
-                          
                         </div>
                       </div>
                       

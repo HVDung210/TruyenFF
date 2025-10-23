@@ -21,8 +21,8 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-router.post('/comic-to-video/detect', upload.single('file'), controller.detectPanelsAndBubbles);
-router.post('/comic-to-video/detect-multiple', upload.array('files', 10), controller.detectPanelsAndBubblesMultiple);
+router.post('/comic-to-video/detect', upload.single('file'), controller.detectPanels);
+router.post('/comic-to-video/detect-multiple', upload.array('files', 10), controller.detectPanelsMultiple);
 
 module.exports = router;
 

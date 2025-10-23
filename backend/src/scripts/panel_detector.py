@@ -8,7 +8,6 @@ import numpy as np
 import os
 import time
 
-# Chỉ giữ lại logic phát hiện panel
 
 # --- CÁC HÀM CƠ BẢN ---
 def read_image_bgr(path: str) -> np.ndarray:
@@ -42,6 +41,7 @@ def encode_image_to_base64(image_bgr: np.ndarray) -> str:
     ok, buffer = cv2.imencode('.jpg', image_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
     if not ok: raise ValueError("Lỗi encode ảnh")
     return base64.b64encode(buffer.tobytes()).decode('utf-8')
+
 
 # --- LOGIC PHÁT HIỆN PANEL (Phiên bản gốc) ---
 def detect_panels(gray: np.ndarray) -> List[Tuple[int, int, int, int]]:

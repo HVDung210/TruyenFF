@@ -9,7 +9,7 @@ if (!fs.existsSync(TEMP_DIR)) {
 }
 
 // Path to Python script
-const PY_SCRIPT = path.join(__dirname, '..', 'scripts', 'panel_bubble_detector.py');
+const PY_SCRIPT = path.join(__dirname, '..', 'scripts', 'panel_detector.py');
 
 const processSingleFile = (file, startTime) => {
   return new Promise((resolve, reject) => {
@@ -110,7 +110,7 @@ const processSingleFile = (file, startTime) => {
   });
 };
 
-exports.detectPanelsAndBubbles = async (req, res) => {
+exports.detectPanels = async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'Thiếu file ảnh (field name: file)' });
@@ -119,12 +119,12 @@ exports.detectPanelsAndBubbles = async (req, res) => {
     const result = await processSingleFile(req.file, Date.now());
     return res.json(result);
   } catch (err) {
-    console.error('[detectPanelsAndBubbles] Fatal controller error:', err);
+    console.error('[detectPanels] Fatal controller error:', err);
     return res.status(500).json({ error: err.message });
   }
 };
 
-exports.detectPanelsAndBubblesMultiple = async (req, res) => {
+exports.detectPanelsMultiple = async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: 'Thiếu file ảnh (field name: files)' });
@@ -151,7 +151,7 @@ exports.detectPanelsAndBubblesMultiple = async (req, res) => {
       results: [...results, ...errors]
     });
   } catch (err) {
-    console.error('[detectPanelsAndBubblesMultiple] Fatal controller error:', err);
+    console.error('[detectPanelsMultiple] Fatal controller error:', err);
     return res.status(500).json({ error: err.message });
   }
 };
