@@ -13,7 +13,7 @@ const HF_API_TOKEN = process.env.HUGGING_FACE_API_TOKEN || '';
 const HF_MODEL = process.env.HUGGING_FACE_MODEL || 'stabilityai/stable-diffusion-xl-base-1.0';
 
 // Google / Gemini
-const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || '';
+const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || 'AIzaSyBbfbq5diB83Vq7Ts4yI4MMG5waTRvhQ4s';
 const GOOGLE_CLOUD_PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT_ID || undefined;
 
 // Google Cloud Storage

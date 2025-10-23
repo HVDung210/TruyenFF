@@ -174,7 +174,6 @@ export default function Header() {
             <Link to="/tim-mo-ta" className="hover:bg-orange-300 text-md px-3 py-1 rounded">Tìm Mô Tả</Link>
           </div>
         </div>
-        {/* Dropdown is rendered near the search input above */}
       </nav>
     </header>
   );
