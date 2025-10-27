@@ -15,7 +15,7 @@ def read_image_bgr(path: str) -> np.ndarray:
     try:
         file_exists = os.path.exists(path)
         file_size = os.path.getsize(path) if file_exists else 0
-        print(f"[PY] read_image_bgr path=\\\"{path}\\\" exists={file_exists} size={file_size} cwd=\\\"{os.getcwd()}\\\" cv2={cv2.__version__}", file=sys.stderr)
+        print(f"[PY] read_image_bgr path=\"{path}\" exists={file_exists} size={file_size} cwd=\"{os.getcwd()}\" cv2={cv2.__version__}", file=sys.stderr)
         
         if not file_exists:
             print(f"[PY][ERROR] File không tồn tại: {path}", file=sys.stderr)
@@ -100,7 +100,7 @@ def main():
         print(json.dumps({"error": "Thiếu đường dẫn ảnh"})); sys.exit(1)
 
     image_path = sys.argv[1]
-    print(f"[PY] Start panel detection image=\\\"{image_path}\\\"", file=sys.stderr)
+    print(f"[PY] Start panel detection image=\"{image_path}\"", file=sys.stderr)
     print(f"[PY] Arguments: {sys.argv}", file=sys.stderr)
     
     try:

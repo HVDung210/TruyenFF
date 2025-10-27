@@ -39,12 +39,12 @@
 // export default App;
 
 import React from 'react';
-import ComicToVideoTester from './components/ComicToVideoTester';
+import ComicAnalysisDashboard from './components/ComicAnalysisDashboard';
 
 function App() {
   return (
     <div className="App">
-      <ComicToVideoTester />
+      <ComicAnalysisDashboard />
     </div>
   );
 }

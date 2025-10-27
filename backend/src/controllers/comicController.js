@@ -9,7 +9,7 @@ if (!fs.existsSync(TEMP_DIR)) {
 }
 
 // Path to Python script
-const PY_SCRIPT = path.join(__dirname, '..', 'scripts', 'panel_detector.py');
+const PY_SCRIPT = path.join(__dirname, '..', 'scripts', 'panel_detector_yolo.py');
 
 const processSingleFile = (file, startTime) => {
   return new Promise((resolve, reject) => {
