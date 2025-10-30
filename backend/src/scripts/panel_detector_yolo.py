@@ -18,7 +18,7 @@ except ImportError:
     print("[PY][WARNING] Ultralytics not installed. Using fallback OpenCV method.", file=sys.stderr)
 
 
-# --- CÁC HÀM CƠ BẢN ---
+# --- CÁC HÀM CƠ BẢN --- (Giữ nguyên)
 def read_image_bgr(path: str) -> np.ndarray:
     """Đọc ảnh từ đường dẫn và trả về numpy array"""
     try:
@@ -53,57 +53,35 @@ def encode_image_to_base64(image_bgr: np.ndarray) -> str:
     return base64.b64encode(buffer.tobytes()).decode('utf-8')
 
 
-# --- YOLOv12 PANEL DETECTION ---
+# --- YOLOv12 PANEL DETECTION --- (Giữ nguyên)
 def detect_panels_yolo(image_bgr: np.ndarray, model_path: str = None) -> List[tuple]:
-    """
-    Phát hiện panels bằng YOLOv12 model từ Hugging Face
-    
-    Args:
-        image_bgr: Ảnh đầu vào (BGR format)
-        model_path: Đường dẫn đến file model best.pt (nếu None sẽ tự động download)
-    
-    Returns:
-        List of tuples (x, y, w, h) cho mỗi panel
-    """
     if not YOLO_AVAILABLE:
         print("[PY][WARNING] YOLO not available, using fallback method", file=sys.stderr)
         return detect_panels_opencv(image_bgr)
     
     try:
-        # Load YOLO model
         if model_path is None or not os.path.exists(model_path):
             print("[PY] Downloading YOLOv12 model from Hugging Face...", file=sys.stderr)
-            # Model sẽ tự động download từ Hugging Face
             model_path = 'D:/Ky_2/Thuc_tap/TruyenFF/backend/src/scripts/models/best.pt'
         
         print(f"[PY] Loading YOLO model from: {model_path}", file=sys.stderr)
         model = YOLO(model_path)
         
-        # Run inference
         print("[PY] Running YOLO inference...", file=sys.stderr)
-        results = model.predict(source=image_bgr, conf=0.25, iou=0.45, verbose=False)
+        results = model.predict(source=image_bgr, conf=0.3, iou=0.45, verbose=False)
         
-        # Extract bounding boxes
         panels = []
         if len(results) > 0:
             result = results[0]
             boxes = result.boxes
-            
             print(f"[PY] YOLO detected {len(boxes)} panels", file=sys.stderr)
             
             for box in boxes:
-                # Get coordinates (xyxy format)
                 x1, y1, x2, y2 = box.xyxy[0].tolist()
-                
-                # Convert to (x, y, w, h) format
                 x = int(x1)
                 y = int(y1)
                 w = int(x2 - x1)
                 h = int(y2 - y1)
-                
-                confidence = box.conf.item()
-                print(f"[PY] Panel detected: x={x}, y={y}, w={w}, h={h}, conf={confidence:.2f}", file=sys.stderr)
-                
                 panels.append((x, y, w, h))
         
         return panels
@@ -114,11 +92,8 @@ def detect_panels_yolo(image_bgr: np.ndarray, model_path: str = None) -> List[tu
         return detect_panels_opencv(image_bgr)
 
 
-# --- FALLBACK: OPENCV PANEL DETECTION (Phương pháp cũ) ---
+# --- FALLBACK: OPENCV PANEL DETECTION (Phương pháp cũ) --- (Giữ nguyên)
 def detect_panels_opencv(image_bgr: np.ndarray) -> List[tuple]:
-    """
-    Phát hiện panels bằng OpenCV (phương pháp cũ - fallback)
-    """
     print("[PY] Using OpenCV panel detection (fallback)", file=sys.stderr)
     
     gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
@@ -141,21 +116,16 @@ def detect_panels_opencv(image_bgr: np.ndarray) -> List[tuple]:
     return panels
 
 
-# --- HÀM ĐIỀU PHỐI CHÍNH ---
+# --- HÀM ĐIỀU PHỐI CHÍNH (ĐÃ CẬP NHẬT LOGIC SẮP XẾP) ---
 def detect(image_bgr: np.ndarray, use_yolo: bool = True, model_path: str = None) -> Dict[str, Any]:
     """
     Phát hiện panels trong ảnh comic
-    
-    Args:
-        image_bgr: Ảnh đầu vào
-        use_yolo: True để dùng YOLOv12, False để dùng OpenCV
-        model_path: Đường dẫn đến YOLO model (optional)
     """
     start_time = time.time()
     original, result_img = image_bgr.copy(), image_bgr.copy()
     h, w, _ = original.shape
 
-    # Chọn phương pháp detection
+    # Chọn phương pháp detection (Giữ nguyên)
     if use_yolo and YOLO_AVAILABLE:
         print("[PY] Using YOLOv12 for panel detection", file=sys.stderr)
         panel_coords = detect_panels_yolo(original, model_path)
@@ -164,8 +134,78 @@ def detect(image_bgr: np.ndarray, use_yolo: bool = True, model_path: str = None)
         print("[PY] Using OpenCV for panel detection", file=sys.stderr)
         panel_coords = detect_panels_opencv(original)
         method = "OpenCV"
+
+    # === CẬP NHẬT KHỐI SẮP XẾP (LOGIC MỚI) ===
+    try:
+        if len(panel_coords) > 0:
+            print(f"[PY] Sorting {len(panel_coords)} panels using row-based logic", file=sys.stderr)
+            
+            # --- LOGIC SẮP XẾP MỚI ---
+            # 1. Sắp xếp sơ bộ theo Y (trên xuống)
+            panel_coords.sort(key=lambda coord: coord[1])
+
+            # 2. Nhóm các panel vào các hàng
+            rows = []
+            if not panel_coords:
+                pass # Bỏ qua nếu không có panel
+            else:
+                current_row = []
+                # Lấy panel đầu tiên làm mốc cho hàng đầu tiên
+                current_row.append(panel_coords[0])
+                # Lấy Y và Chiều cao của panel đầu tiên làm mốc
+                row_anchor_y = panel_coords[0][1] 
+                row_anchor_height = panel_coords[0][3]
+                
+                for i in range(1, len(panel_coords)):
+                    panel = panel_coords[i]
+                    panel_y = panel[1]
+                    
+                    # Ngưỡng: Coi là "cùng hàng" nếu Y của panel mới
+                    # nằm trong phạm vi 50% chiều cao của mốc hàng.
+                    threshold = row_anchor_height * 0.5 
+                    
+                    if panel_y < (row_anchor_y + threshold):
+                        # CÙNG HÀNG: Thêm vào hàng hiện tại
+                        current_row.append(panel)
+                        # Cập nhật lại mốc Y và chiều cao (dùng giá trị trung bình)
+                        all_y = [p[1] for p in current_row]
+                        all_h = [p[3] for p in current_row]
+                        row_anchor_y = sum(all_y) / len(all_y)
+                        row_anchor_height = sum(all_h) / len(all_h)
+                    else:
+                        # HÀNG MỚI: Hàng cũ kết thúc, bắt đầu hàng mới
+                        rows.append(current_row) # Lưu hàng cũ
+                        current_row = [panel]    # Hàng mới
+                        row_anchor_y = panel_y   # Đặt lại mốc Y
+                        row_anchor_height = panel[3] # Đặt lại mốc chiều cao
+                
+                # Lưu hàng cuối cùng
+                if current_row:
+                    rows.append(current_row)
+
+            # 3. Sắp xếp X bên trong mỗi hàng và làm phẳng danh sách
+            sorted_panels = []
+            print(f"[PY] Detected {len(rows)} distinct rows", file=sys.stderr)
+            for i, row in enumerate(rows):
+                # Sắp xếp các panel trong hàng này theo tọa độ X
+                row.sort(key=lambda coord: coord[0])
+                print(f"[PY] Row {i+1} has {len(row)} panels (sorted by X)", file=sys.stderr)
+                sorted_panels.extend(row) # Thêm vào danh sách cuối cùng
+            
+            panel_coords = sorted_panels # Gán lại danh sách đã sắp xếp
+            # --- HẾT LOGIC SẮP XẾP MỚI ---
+            
+            if panel_coords: # Kiểm tra lại nếu rỗng
+                print(f"[PY] Sorting complete. First panel (top-left) starts at Y={panel_coords[0][1]}, X={panel_coords[0][0]}", file=sys.stderr)
+        else:
+            print("[PY] No panels found, skipping sorting", file=sys.stderr)
+            
+    except Exception as e:
+        print(f"[PY][ERROR] Panel sorting failed: {str(e)}", file=sys.stderr)
+        print(f"[PY][ERROR] Traceback: {traceback.format_exc()}", file=sys.stderr)
+    # =======================================
     
-    # Format kết quả
+    # Format kết quả (Giữ nguyên)
     panels_final = []
     for i, (px, py, pw, ph) in enumerate(panel_coords):
         panel_info = {"id": i + 1, "x": px, "y": py, "w": pw, "h": ph}
@@ -188,7 +228,7 @@ def detect(image_bgr: np.ndarray, use_yolo: bool = True, model_path: str = None)
     }
 
 
-# --- HÀM MAIN ---
+# --- HÀM MAIN --- (Giữ nguyên)
 def main():
     sys.stdout.reconfigure(encoding='utf-8')
     print(f"[PY] Script started with {len(sys.argv)} arguments", file=sys.stderr)
@@ -199,10 +239,8 @@ def main():
 
     image_path = sys.argv[1]
     
-    # Optional: Đường dẫn đến YOLO model
     model_path = sys.argv[2] if len(sys.argv) > 2 else None
     
-    # Optional: Cờ để chọn phương pháp (yolo hoặc opencv)
     use_yolo = True
     if len(sys.argv) > 3:
         use_yolo = sys.argv[3].lower() != 'opencv'
@@ -235,4 +273,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

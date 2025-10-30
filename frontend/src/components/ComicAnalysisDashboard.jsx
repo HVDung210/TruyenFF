@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import PanelDetectionTester from './PanelDetectionTester';
+import PanelEditorTester from './PanelEditorTester';
 import TextDetectionTester from './TextDetectionTester';
 import PanelCropperTester from './PanelCropperTester';
 
@@ -13,25 +14,26 @@ const ComicAnalysisDashboard = () => {
 
   const tabs = [
     { id: 'panels', label: 'Panel Detection', component: PanelDetectionTester },
+    { id: 'editor', label: 'Panel Editor', component: PanelEditorTester },
     { id: 'crop', label: 'Panel Cropper', component: PanelCropperTester },
     { id: 'text', label: 'Text Detection', component: TextDetectionTester },
     // { id: 'api-test', label: 'API Tester', component: TextDetectionAPITester }
   ];
 
-  const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component || ComicToVideoTester;
+  const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component || PanelDetectionTester;
 
   const onFileChange = (e) => {
     const selectedFiles = Array.from(e.target.files || []);
     setFiles(selectedFiles);
     setFileNames(selectedFiles.map(f => f.name).join(', '));
     
-    // Reset kết quả phân tích khi upload file mới
     const initialResults = selectedFiles.map(f => ({
       fileName: f.name,
       status: "pending",
-      detectionData: null, // Kết quả từ Tab 1
-      cropData: null,      // Kết quả từ Tab 2
-      textData: null       // Kết quả từ Tab 3
+      detectionData: null,
+      editedDetectionData: null, // <-- STATE MỚI: Lưu kết quả đã chỉnh sửa
+      cropData: null,
+      textData: null
     }));
     setAnalysisResults(initialResults);
   };
@@ -99,7 +101,6 @@ const ComicAnalysisDashboard = () => {
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-6">
-        {/* Truyền props mới xuống component con */}
         <ActiveComponent 
           files={files} 
           analysisResults={analysisResults} 

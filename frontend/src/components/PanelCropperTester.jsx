@@ -32,10 +32,11 @@ const PanelCropperTester = ({ files, analysisResults, updateAnalysisResult }) =>
       });
 
       const panelDataPayload = analysisResults
-        .filter(r => r.detectionData) 
+        .filter(r => r.detectionData)
         .map(r => ({
           fileName: r.fileName,
-          panels: r.detectionData.panels
+          // ƯU TIÊN LẤY DATA ĐÃ SỬA, NẾU KHÔNG CÓ THÌ LẤY DATA GỐC
+          panels: (r.editedDetectionData || r.detectionData).panels 
         }));
       
       formData.append('panelData', JSON.stringify(panelDataPayload));
