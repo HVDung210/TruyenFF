@@ -36,6 +36,22 @@ const upload = multer({
     }
 });
 
+const uploadMultiple = multer({ 
+    storage: storage,
+    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB per file
+    fileFilter: function (req, file, cb) {
+        const allowedTypes = /jpeg|jpg|png|gif|webp/;
+        const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+        const mimetype = allowedTypes.test(file.mimetype);
+        
+        if (mimetype && extname) {
+            return cb(null, true);
+        } else {
+            cb(new Error('Chỉ cho phép upload file ảnh (JPEG, PNG, GIF, WebP)'));
+        }
+    }
+});
+
 class TextDetectionController {
     
     /**
@@ -115,6 +131,138 @@ class TextDetectionController {
                 error: error.message,
                 message: 'Internal server error'
             });
+        }
+    }
+
+    /**
+     * HÀM MỚI
+     * POST /api/text-detection/detect-multiple
+     * Detect text trong nhiều comic images được upload
+     */
+    async detectTextInComicMultiple(req, res) {
+        try {
+            console.log('[TextDetectionController] Multiple text detection request received');
+            
+            const uploadArray = uploadMultiple.array('comicImages', 10); // field name là 'comicImages'
+            
+            uploadArray(req, res, async (err) => {
+                if (err) {
+                    console.error('[TextDetectionController] Upload multiple error:', err);
+                    return res.status(400).json({ success: false, error: err.message });
+                }
+                
+                if (!req.files || req.files.length === 0) {
+                    return res.status(400).json({ success: false, error: 'Không có file ảnh nào được upload' });
+                }
+
+                const results = [];
+                const errors = [];
+
+                // Xử lý tuần tự từng file
+                for (let i = 0; i < req.files.length; i++) {
+                    const file = req.files[i];
+                    try {
+                        console.log(`[TextDetectionController] Processing file ${i+1}: ${file.filename}`);
+                        const result = await textDetectionService.detectTextInComic(file.path);
+                        
+                        if (result.success) {
+                             results.push({ success: true, data: { ...result.data, fileName: file.originalname } });
+                        } else {
+                            errors.push({ success: false, error: result.error, fileName: file.originalname });
+                        }
+                        
+                        // Cleanup
+                        try { fs.unlinkSync(file.path); } catch (e) { console.warn('Failed to cleanup file'); }
+
+                    } catch (error) {
+                        errors.push({ success: false, error: error.message, fileName: file.originalname });
+                        // Cleanup
+                        try { fs.unlinkSync(file.path); } catch (e) { console.warn('Failed to cleanup file'); }
+                    }
+                }
+                
+                return res.json({
+                    totalFiles: req.files.length,
+                    successful: results.length,
+                    failed: errors.length,
+                    results: [...results, ...errors]
+                });
+
+            });
+            
+        } catch (error) {
+            console.error('[TextDetectionController] Controller multiple error:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    }
+
+    /**
+     * HÀM MỚI
+     * POST /api/text-detection/detect-from-data
+     * Detect text trong nhiều ảnh dùng panel data có sẵn
+     */
+    async detectTextFromData(req, res) {
+        try {
+            console.log('[TextDetectionController] Detect text from data request received');
+            
+            const uploadArray = uploadMultiple.array('comicImages', 10);
+            
+            uploadArray(req, res, async (err) => {
+                if (err) return res.status(400).json({ success: false, error: err.message });
+                if (!req.files || req.files.length === 0) {
+                    return res.status(400).json({ success: false, error: 'Không có file ảnh nào được upload' });
+                }
+
+                // Lấy panelData từ body
+                const { panelData } = req.body;
+                let parsedData = [];
+                if (panelData) {
+                    try { parsedData = JSON.parse(panelData); }
+                    catch (e) { console.warn('panelData không hợp lệ, sẽ tự động detect'); }
+                }
+
+                const results = [];
+                const errors = [];
+
+                for (let i = 0; i < req.files.length; i++) {
+                    const file = req.files[i];
+                    try {
+                        // Tìm data panel tương ứng
+                        const filePanelData = parsedData.find(d => d.fileName === file.originalname);
+                        let panelJson = null;
+                        if (filePanelData && filePanelData.panels) {
+                            panelJson = JSON.stringify(filePanelData.panels);
+                        } else {
+                          console.warn(`[detectTextFromData] Không tìm thấy panelData cho: ${file.originalname}. Sẽ tự động detect.`);
+                        }
+
+                        // Gọi service MỚI
+                        const result = await textDetectionService.detectTextInComicFromData(file.path, panelJson);
+                        
+                        if (result.success) {
+                             results.push({ success: true, data: { ...result.data, fileName: file.originalname } });
+                        } else {
+                            errors.push({ success: false, error: result.error, fileName: file.originalname });
+                        }
+                        
+                        fs.unlinkSync(file.path);
+                    } catch (error) {
+                        errors.push({ success: false, error: error.message, fileName: file.originalname });
+                        try { fs.unlinkSync(file.path); } catch (e) {}
+                    }
+                }
+                
+                return res.json({
+                    totalFiles: req.files.length,
+                    successful: results.length,
+                    failed: errors.length,
+                    results: [...results, ...errors]
+                });
+            });
+            
+        } catch (error) {
+            console.error('[TextDetectionController] Controller from data error:', error);
+            res.status(500).json({ success: false, error: error.message });
         }
     }
     

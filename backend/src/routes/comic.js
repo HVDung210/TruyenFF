@@ -23,6 +23,8 @@ const upload = multer({ storage });
 
 router.post('/comic-to-video/detect', upload.single('file'), controller.detectPanels);
 router.post('/comic-to-video/detect-multiple', upload.array('files', 10), controller.detectPanelsMultiple);
+router.post('/comic/crop-panels-multiple', upload.array('files', 10), controller.cropPanelsMultiple);
+router.post('/comic/crop-from-data', upload.array('files', 10), controller.cropFromData);
 
 
 module.exports = router;

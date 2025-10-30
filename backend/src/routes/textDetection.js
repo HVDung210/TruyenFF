@@ -26,6 +26,20 @@ const router = express.Router();
 router.post('/detect', textDetectionController.detectTextInComic);
 
 /**
+ * ROUTE MỚI
+ * POST /api/text-detection/detect-multiple
+ * Upload nhiều comic images và detect text
+ */
+router.post('/detect-multiple', textDetectionController.detectTextInComicMultiple);
+
+/**
+ * ROUTE MỚI
+ * POST /api/text-detection/detect-from-data
+ * Upload nhiều comic images và panel data
+ */
+router.post('/detect-from-data', textDetectionController.detectTextFromData);
+
+/**
  * POST /api/text-detection/detect-url
  * Detect text trong comic image từ URL
  * 

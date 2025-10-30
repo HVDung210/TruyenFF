@@ -221,7 +221,12 @@ def detect_panels_opencv(image_bgr: np.ndarray) -> List[tuple]:
 
 
 # --- HÀM ĐIỀU PHỐI CHÍNH (ĐÃ CẬP NHẬT) ---
-def detect_text_in_comic(image_bgr: np.ndarray, credentials_path: str, model_path: Optional[str] = None) -> Dict[str, Any]:
+def detect_text_in_comic(
+    image_bgr: np.ndarray, 
+    credentials_path: str, 
+    model_path: Optional[str] = None,
+    panel_coords_json: Optional[str] = None # <-- THAM SỐ MỚI
+) -> Dict[str, Any]:    
     """Detect text trong comic bằng cách phân tích từng panel"""
     start_time = time.time()
     original = image_bgr.copy()
@@ -230,14 +235,27 @@ def detect_text_in_comic(image_bgr: np.ndarray, credentials_path: str, model_pat
     # Detect panels (SỬ DỤNG LOGIC MỚI)
     panel_coords = []
     method = ""
-    if YOLO_AVAILABLE:
-        print("[PY] Using YOLOv12 for panel detection", file=sys.stderr)
-        panel_coords = detect_panels_yolo(original, model_path)
-        method = "YOLOv12"
-    else:
-        print("[PY] Using OpenCV for panel detection (fallback)", file=sys.stderr)
-        panel_coords = detect_panels_opencv(original)
-        method = "OpenCV"
+    
+    if panel_coords_json:
+        print("[PY] Using panels from JSON input", file=sys.stderr)
+        try:
+            panel_list = json.loads(panel_coords_json)
+            panel_coords = [(p['x'], p['y'], p['w'], p['h']) for p in panel_list]
+            method = "JSON_Input"
+        except Exception as e:
+            print(f"[PY][ERROR] Failed to parse panel_coords_json: {e}", file=sys.stderr)
+            print("[PY] Falling back to YOLO/OpenCV detection", file=sys.stderr)
+            panel_coords_json = None
+
+    if not panel_coords_json:
+        if YOLO_AVAILABLE:
+            print("[PY] Using YOLOv12 for panel detection", file=sys.stderr)
+            panel_coords = detect_panels_yolo(original, model_path)
+            method = "YOLOv12"
+        else:
+            print("[PY] Using OpenCV for panel detection (fallback)", file=sys.stderr)
+            panel_coords = detect_panels_opencv(original)
+            method = "OpenCV"
     
     panels_with_text = []
     
@@ -257,36 +275,19 @@ def detect_text_in_comic(image_bgr: np.ndarray, credentials_path: str, model_pat
             vision_result = call_vision_api(panel_base64, credentials_path)
             
             panel_info = {
-                "id": i + 1,
-                "x": px, 
-                "y": py, 
-                "w": pw, 
-                "h": ph,
+                "id": i + 1, "x": px, "y": py, "w": pw, "h": ph,
                 "textDetected": len(vision_result.get('textAnnotations', [])) > 0,
                 "textAnnotations": vision_result.get('textAnnotations', []),
                 "fullTextAnnotation": vision_result.get('fullTextAnnotation', {}),
                 "textContent": vision_result.get('fullTextAnnotation', {}).get('text', '')
             }
-            
             panels_with_text.append(panel_info)
-            
             print(f"[PY] Panel {i+1} text detection completed. Text found: {panel_info['textDetected']}", file=sys.stderr)
             
         except Exception as e:
             print(f"[PY][ERROR] Failed to process panel {i+1}: {str(e)}", file=sys.stderr)
             # Vẫn thêm panel nhưng không có text
-            panel_info = {
-                "id": i + 1,
-                "x": px, 
-                "y": py, 
-                "w": pw, 
-                "h": ph,
-                "textDetected": False,
-                "textAnnotations": [],
-                "fullTextAnnotation": {},
-                "textContent": "",
-                "error": str(e)
-            }
+            panel_info = { "id": i + 1, "x": px, "y": py, "w": pw, "h": ph, "textDetected": False, "error": str(e) }
             panels_with_text.append(panel_info)
 
     # Tạo ảnh annotated
@@ -331,23 +332,26 @@ def main():
     
     if len(sys.argv) < 3:
         print("[PY][ERROR] Thiếu đường dẫn ảnh hoặc credentials", file=sys.stderr)
-        print(json.dumps({"error": "Usage: python text_detector.py <image_path> <credentials_path> [model_path]"}))
+        print(json.dumps({"error": "Usage: python text_detector.py <image_path> <credentials_path> [model_path] [panel_json_string]"}))
         sys.exit(1)
 
     image_path = sys.argv[1]
     credentials_path = sys.argv[2]
-    model_path = sys.argv[3] if len(sys.argv) > 3 else None # Thêm model_path
+    model_path = sys.argv[3] if len(sys.argv) > 3 else None
+    panel_json_string = sys.argv[4] if len(sys.argv) > 4 else None 
     
-    print(f"[PY] Start text detection image=\"{image_path}\" credentials=\"{credentials_path}\" model=\"{model_path}\"", file=sys.stderr)
+    print(f"[PY] Start text detection image=\"{image_path}\" model=\"{model_path}\" has_json={panel_json_string is not None}", file=sys.stderr)
     
     try:
-        print(f"[PY] Bước 1: Đọc ảnh từ {image_path}", file=sys.stderr)
         image = read_image_bgr(image_path)
         
-        print(f"[PY] Bước 2: Bắt đầu detect text trong comic", file=sys.stderr)
-        result = detect_text_in_comic(image, credentials_path, model_path) # Truyền model_path
+        result = detect_text_in_comic(
+            image, 
+            credentials_path, 
+            model_path, 
+            panel_json_string # <-- Truyền vào
+        )
         
-        print(f"[PY] Bước 3: Hoàn thành xử lý, trả về kết quả", file=sys.stderr)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         sys.exit(0)
         
@@ -362,7 +366,6 @@ def main():
     except Exception as e:
         error_details = traceback.format_exc()
         print(f"[PY][ERROR] Unexpected error: {str(e)}", file=sys.stderr)
-        print(f"[PY][ERROR] Traceback: {error_details}", file=sys.stderr)
         print(json.dumps({"error": "Script Python xử lý ảnh thất bại", "details": error_details}))
         sys.exit(2)
 
