@@ -3,6 +3,8 @@ import PanelDetectionTester from './PanelDetectionTester';
 import PanelEditorTester from './PanelEditorTester';
 import TextDetectionTester from './TextDetectionTester';
 import PanelCropperTester from './PanelCropperTester';
+import TextEditorTester from './TextEditorTester';
+import VideoGeneratorTester from './VideoGeneratorTester';
 
 const ComicAnalysisDashboard = () => {
   const [activeTab, setActiveTab] = useState('panels');
@@ -12,12 +14,16 @@ const ComicAnalysisDashboard = () => {
 
   const [analysisResults, setAnalysisResults] = useState([]);
 
+  const [videoData, setVideoData] = useState([]);
+
   const tabs = [
-    { id: 'panels', label: 'Panel Detection', component: PanelDetectionTester },
-    { id: 'editor', label: 'Panel Editor', component: PanelEditorTester },
-    { id: 'crop', label: 'Panel Cropper', component: PanelCropperTester },
-    { id: 'text', label: 'Text Detection', component: TextDetectionTester },
+    { id: 'panels', label: '1. Panel Detection', component: PanelDetectionTester },
+    { id: 'editor', label: '2. Panel Editor', component: PanelEditorTester },
+    { id: 'crop', label: '3. Panel Cropper', component: PanelCropperTester },
+    { id: 'text', label: '4. Text Detection', component: TextDetectionTester },
     // { id: 'api-test', label: 'API Tester', component: TextDetectionAPITester }
+    { id: 'text-editor', label: '5. Text Editor', component: TextEditorTester }, 
+    { id: 'video', label: '6. Video Generation', component: VideoGeneratorTester }
   ];
 
   const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component || PanelDetectionTester;
@@ -33,9 +39,12 @@ const ComicAnalysisDashboard = () => {
       detectionData: null,
       editedDetectionData: null, // <-- STATE MỚI: Lưu kết quả đã chỉnh sửa
       cropData: null,
-      textData: null
+      textData: null,
+      editedTextData: null
     }));
     setAnalysisResults(initialResults);
+    // 4. RESET VIDEO DATA KHI THAY ĐỔI FILE
+    setVideoData([]);
   };
 
   /**
@@ -105,6 +114,9 @@ const ComicAnalysisDashboard = () => {
           files={files} 
           analysisResults={analysisResults} 
           updateAnalysisResult={updateAnalysisResult}
+          // 5. TRUYỀN PROPS MỚI XUỐNG TAB CON
+          videoData={videoData}
+          setVideoData={setVideoData}
         />
       </div>
     </div>

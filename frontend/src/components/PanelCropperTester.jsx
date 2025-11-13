@@ -88,7 +88,7 @@ const PanelCropperTester = ({ files, analysisResults, updateAnalysisResult }) =>
 
   return (
     <div className="pt-6 bg-slate-900 text-gray-200">
-      <h2 className="text-xl font-bold mb-4 text-blue-400 pt-6">Bước 2: Cắt Panel</h2>
+      <h2 className="text-xl font-bold mb-4 text-blue-400 pt-6">Bước 3: Cắt Panel</h2>
 
       <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
         <p className="text-gray-300 mb-4">

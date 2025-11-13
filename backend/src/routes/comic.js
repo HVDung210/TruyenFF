@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const controller = require('../controllers/comicController');
 
+
 const router = express.Router();
 
 const uploadDir = path.join(__dirname, '..', 'tmp');
@@ -26,6 +27,7 @@ router.post('/comic-to-video/detect-multiple', upload.array('files', 10), contro
 router.post('/comic/crop-panels-multiple', upload.array('files', 10), controller.cropPanelsMultiple);
 router.post('/comic/crop-from-data', upload.array('files', 10), controller.cropFromData);
 
+router.post('/comic/video/generate-audio', controller.generateAudio);
 
 module.exports = router;
 

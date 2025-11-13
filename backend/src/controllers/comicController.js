@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
+const textToSpeechService = require('../services/textToSpeechService');
 
 // Ensure temp directory exists
 const TEMP_DIR = path.join(__dirname, '..', 'tmp');
@@ -251,5 +252,31 @@ exports.cropFromData = async (req, res) => {
   } catch (err) {
     console.error('[cropFromData] Fatal controller error:', err);
     return res.status(500).json({ error: err.message });
+  }
+};
+
+exports.generateAudio = async (req, res) => {
+  try {
+    // Dữ liệu này được gửi từ VideoGeneratorTester.jsx
+    const { textDataResults } = req.body;
+
+    if (!textDataResults || !Array.isArray(textDataResults) || textDataResults.length === 0) {
+      return res.status(400).json({ success: false, error: 'Thiếu textDataResults' });
+    }
+
+    console.log(`[ComicController] Nhận yêu cầu tạo audio cho ${textDataResults.length} file...`);
+
+    // Gọi service TTS
+    const audioData = await textToSpeechService.generateAudioForProject(textDataResults);
+
+    res.json({
+      success: true,
+      data: audioData,
+      message: 'Tạo audio thành công'
+    });
+
+  } catch (error) {
+    console.error('[ComicController] Lỗi tạo audio:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 };

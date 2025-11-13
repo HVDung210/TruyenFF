@@ -22,10 +22,6 @@ async function detectTextInImage(imagePath, credentialsPath) {
             },
             features: [
                 {
-                    type: 'TEXT_DETECTION',
-                    maxResults: 50,
-                },
-                {
                     type: 'DOCUMENT_TEXT_DETECTION',
                     maxResults: 1,
                 }
