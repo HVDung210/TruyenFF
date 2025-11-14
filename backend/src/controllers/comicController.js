@@ -2,6 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const textToSpeechService = require('../services/textToSpeechService');
+const videoService = require('../services/videoService');
 
 // Ensure temp directory exists
 const TEMP_DIR = path.join(__dirname, '..', 'tmp');
@@ -278,5 +279,77 @@ exports.generateAudio = async (req, res) => {
   } catch (error) {
     console.error('[ComicController] Lỗi tạo audio:', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+exports.generateScenes = async (req, res) => {
+  try {
+      // 1. Nhận 2 bộ dữ liệu từ frontend
+      const { videoData, cropData } = req.body;
+
+      if (!videoData || !cropData) {
+          return res.status(400).json({ success: false, error: 'Thiếu videoData hoặc cropData' });
+      }
+
+      console.log(`[ComicController] Nhận yêu cầu tạo scene cho ${cropData.length} file...`);
+
+      const allSceneData = [];
+
+      // 2. Lặp qua từng file (ví dụ: page_01.jpg, page_02.jpg)
+      for (const fileCropData of cropData) {
+          const fileName = fileCropData.fileName;
+          
+          // Tìm audio data (chứa duration) tương ứng
+          const fileAudioData = videoData.find(f => f.fileName === fileName);
+          if (!fileAudioData) continue;
+
+          const fileSceneData = {
+              fileName: fileName,
+              panels: []
+          };
+
+          // 3. Lặp qua từng panel trong file
+          for (const panelCrop of fileCropData.panels) {
+              const panelId = panelCrop.id;
+
+              // Tìm duration tương ứng
+              const panelAudio = fileAudioData.panels.find(p => p.panelId === panelId);
+              if (!panelAudio) continue;
+
+              const duration = panelAudio.duration;
+              const imageB64 = panelCrop.croppedImageBase64;
+              const outputFileName = `${path.parse(fileName).name}_panel_${panelId}.mp4`;
+
+              try {
+                  // 4. Gọi VideoService để tạo clip .mp4
+                  const { videoPath, videoUrl } = await videoService.createScene(
+                      imageB64,
+                      duration,
+                      outputFileName
+                  );
+                  
+                  fileSceneData.panels.push({
+                      panelId: panelId,
+                      duration: duration,
+                      videoUrl: videoUrl,
+                  });
+
+              } catch (error) {
+                  console.error(`[ComicController] Lỗi tạo scene cho ${outputFileName}:`, error);
+                  // Bỏ qua panel này nếu lỗi
+              }
+          }
+          allSceneData.push(fileSceneData);
+      }
+
+      res.json({
+          success: true,
+          data: allSceneData,
+          message: 'Tạo scene video thành công'
+      });
+
+  } catch (error) {
+      console.error('[ComicController] Lỗi tạo scenes:', error);
+      res.status(500).json({ success: false, error: error.message });
   }
 };

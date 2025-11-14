@@ -28,6 +28,7 @@ router.post('/comic/crop-panels-multiple', upload.array('files', 10), controller
 router.post('/comic/crop-from-data', upload.array('files', 10), controller.cropFromData);
 
 router.post('/comic/video/generate-audio', controller.generateAudio);
+router.post('/comic/video/generate-scenes', controller.generateScenes);
 
 module.exports = router;
 
