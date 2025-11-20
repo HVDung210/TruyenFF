@@ -3,3 +3,5 @@ backend/.env
 backend/truyenff-466701-6d617a31f7b4.json
 backend/src/config/env.js
 backend/src/scripts/models/best.pt
+backend/src/scripts/models/speech-bubble-seg.pt
+backend/.venv
