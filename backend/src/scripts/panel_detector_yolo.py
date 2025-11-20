@@ -61,13 +61,23 @@ def detect_panels_yolo(image_bgr: np.ndarray, model_path: str = None) -> List[tu
     
     try:
         if model_path is None or not os.path.exists(model_path):
-            print("[PY] Downloading YOLOv12 model from Hugging Face...", file=sys.stderr)
-            model_path = 'D:/Ky_2/Thuc_tap/TruyenFF/backend/src/scripts/models/best.pt'
+            # Lấy đường dẫn thư mục chứa file script hiện tại (src/scripts)
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            # Trỏ vào thư mục models/best.pt
+            model_path = os.path.join(current_dir, 'models', 'best.pt')
+            print(f"[PY] Default model path resolved to: {model_path}", file=sys.stderr)
+
+        # Kiểm tra lại lần nữa, nếu vẫn không thấy thì báo lỗi hoặc để YOLO tự tải (nếu có internet)
+        if not os.path.exists(model_path):
+            print(f"[PY][WARNING] Model file not found at: {model_path}", file=sys.stderr)
+            # YOLO sẽ tự động tải model mặc định 'yolov8n.pt' nếu không tìm thấy file, 
+            # nhưng ở đây ta muốn dùng best.pt của mình nên cần cảnh báo.
         
         print(f"[PY] Loading YOLO model from: {model_path}", file=sys.stderr)
         model = YOLO(model_path)
         
         print("[PY] Running YOLO inference...", file=sys.stderr)
+        # Lưu ý: conf và iou có thể tinh chỉnh tùy vào độ chính xác của model best.pt
         results = model.predict(source=image_bgr, conf=0.3, iou=0.45, verbose=False)
         
         panels = []

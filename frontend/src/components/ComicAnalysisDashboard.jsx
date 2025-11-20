@@ -5,6 +5,7 @@ import TextDetectionTester from './TextDetectionTester';
 import PanelCropperTester from './PanelCropperTester';
 import TextEditorTester from './TextEditorTester';
 import VideoGeneratorTester from './VideoGeneratorTester';
+import InpaintingTester from './InpaintingTester';
 
 const ComicAnalysisDashboard = () => {
   const [activeTab, setActiveTab] = useState('panels');
@@ -22,8 +23,10 @@ const ComicAnalysisDashboard = () => {
     { id: 'crop', label: '3. Panel Cropper', component: PanelCropperTester },
     { id: 'text', label: '4. Text Detection', component: TextDetectionTester },
     // { id: 'api-test', label: 'API Tester', component: TextDetectionAPITester }
+    { id: 'inpainting', label: '4.5. Inpainting', component: InpaintingTester },
     { id: 'text-editor', label: '5. Text Editor', component: TextEditorTester }, 
     { id: 'video', label: '6. Video Generation', component: VideoGeneratorTester }
+    
   ];
 
   const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component || PanelDetectionTester;
@@ -40,6 +43,7 @@ const ComicAnalysisDashboard = () => {
       editedDetectionData: null, // <-- STATE MỚI: Lưu kết quả đã chỉnh sửa
       cropData: null,
       textData: null,
+      inpaintedData: null,
       editedTextData: null
     }));
     setAnalysisResults(initialResults);
@@ -50,7 +54,7 @@ const ComicAnalysisDashboard = () => {
   /**
    * HÀM MỚI: Callback để các tab con cập nhật state chung
    * @param {string} fileName Tên file
-   * @param {'detectionData' | 'cropData' | 'textData'} type Loại dữ liệu
+   * @param {'detectionData' | 'cropData' | 'textData' | 'inpaintedData' | 'editedDetectionData' | 'editedTextData'} type Loại dữ liệu
    * @param {object} data Dữ liệu kết quả
    */
   const updateAnalysisResult = (fileName, type, data) => {
@@ -70,13 +74,13 @@ const ComicAnalysisDashboard = () => {
         <div className="max-w-7xl mx-auto px-6 py-4">
           <h1 className="text-2xl font-bold text-blue-400 mb-4">Comic Analysis Dashboard</h1>
           
-          {/* Tab Navigation (giữ nguyên) */}
-          <div className="flex space-x-1 bg-slate-700 rounded-lg p-1">
+          {/* Tab Navigation (Tự động cập nhật khi 'tabs' thay đổi) */}
+          <div className="flex space-x-1 bg-slate-700 rounded-lg p-1 overflow-x-auto">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex-shrink-0 ${
                   activeTab === tab.id
                     ? 'bg-blue-600 text-white'
                     : 'text-gray-300 hover:text-white hover:bg-slate-600'

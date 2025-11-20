@@ -13,6 +13,7 @@ if (!fs.existsSync(TEMP_DIR)) {
 // Path to Python scripts (Đảm bảo cả 2 đều được định nghĩa)
 const PY_SCRIPT_DETECT = path.join(__dirname, '..', 'scripts', 'panel_detector_yolo.py');
 const PY_SCRIPT_CROP = path.join(__dirname, '..', 'scripts', 'panel_cropper.py');
+const PY_SCRIPT_INPAINT = path.join(__dirname, '..', 'scripts', 'panel_inpainter.py');
 
 /**
  * Hàm chung để gọi script Python
@@ -351,5 +352,86 @@ exports.generateScenes = async (req, res) => {
   } catch (error) {
       console.error('[ComicController] Lỗi tạo scenes:', error);
       res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+/**
+ * [MỚI] HÀM: Xóa bong bóng thoại (Inpainting)
+ * Nhận JSON input từ frontend, gọi Python qua STDIN, trả về JSON output.
+ */
+exports.removeBubbles = async (req, res) => {
+  try {
+    const { filesData } = req.body; 
+
+    if (!filesData || !Array.isArray(filesData)) {
+      return res.status(400).json({ error: 'Thiếu dữ liệu filesData hoặc sai định dạng' });
+    }
+
+    console.log(`[ComicController] Nhận yêu cầu xóa bong bóng cho ${filesData.length} file...`);
+
+    // Python command (dùng python trong môi trường ảo nếu cần, hoặc 'python' mặc định)
+    const pythonCmd = process.env.PYTHON_CMD || 'python';
+    
+    // Spawn process
+    const py = spawn(pythonCmd, [PY_SCRIPT_INPAINT]);
+
+    let stdout = '';
+    let stderr = '';
+
+    // 1. Gửi dữ liệu vào Python qua STDIN (Vì Base64 quá dài không thể truyền qua arguments)
+    const inputJson = JSON.stringify({ filesData });
+    py.stdin.write(inputJson);
+    py.stdin.end(); // Kết thúc luồng input để Python bắt đầu xử lý
+
+    // 2. Lắng nghe dữ liệu trả về
+    py.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    py.stderr.on('data', (data) => {
+      // Log tiến trình từ Python (được in qua sys.stderr)
+      const msg = data.toString().trim();
+      if (msg) console.log('[PYTHON INPAINT]', msg);
+      stderr += msg;
+    });
+
+    // 3. Xử lý khi Python chạy xong
+    py.on('close', (code) => {
+      if (code !== 0) {
+        console.error('[removeBubbles] Python process failed with code', code);
+        return res.status(500).json({ 
+            error: 'Lỗi xử lý Python Inpainting', 
+            details: stderr 
+        });
+      }
+
+      try {
+        // Parse kết quả JSON từ Python
+        const result = JSON.parse(stdout);
+        
+        if (result.error) {
+            return res.status(500).json({ error: result.error, details: result.details });
+        }
+
+        console.log('[ComicController] Inpainting hoàn tất.');
+        return res.json({
+          success: true,
+          data: result.data,
+          message: 'Đã xóa bong bóng thành công'
+        });
+
+      } catch (e) {
+        console.error('[removeBubbles] JSON Parse Error:', e.message);
+        console.error('Raw Stdout:', stdout.slice(0, 200) + '...'); // Debug log
+        return res.status(500).json({ 
+            error: 'Không thể đọc kết quả từ Python', 
+            details: e.message 
+        });
+      }
+    });
+
+  } catch (err) {
+    console.error('[removeBubbles] Controller Fatal Error:', err);
+    return res.status(500).json({ error: err.message });
   }
 };

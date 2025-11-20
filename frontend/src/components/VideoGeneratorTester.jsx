@@ -1,19 +1,14 @@
-// File: src/components/VideoGeneratorTester.jsx
-// TRẠNG THÁI: ĐÃ THÊM BƯỚC 6.2 (TẠO CẢNH QUAY)
-
 import React, { useState } from 'react';
 
 const API_BASE_URL = 'http://localhost:5000'; 
 
 const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData }) => {
-  // 1. TÁCH STATE LOADING
   const [loadingAudio, setLoadingAudio] = useState(false);
   const [loadingScenes, setLoadingScenes] = useState(false);
   const [error, setError] = useState('');
-  // STATE MỚI ĐỂ LƯU KẾT QUẢ VIDEO
   const [sceneData, setSceneData] = useState([]);
 
-  // 1. LOGIC CHUẨN HÓA (Giữ nguyên code của bạn)
+  // 1. LOGIC CHUẨN HÓA TEXT (Giữ nguyên)
   const getProcessedTextData = () => {
     return analysisResults
       .map(result => {
@@ -41,33 +36,34 @@ const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData 
 
   const processedTextResults = getProcessedTextData();
   
-  // 2. CHECK SẴN SÀNG (Đã cập nhật)
-  // Sẵn sàng cho Audio (Bước 6.1)
+  // 2. CHECK SẴN SÀNG
   const isReadyForAudio = files.length > 0 && 
-                        analysisResults.some(r => r.detectionData); // Chỉ cần có Bước 1
+                        analysisResults.some(r => r.detectionData);
 
-  // Sẵn sàng cho Scene (Bước 6.2)
-  const isReadyForScenes = videoData.length > 0 && // Phải có audio (duration)
-                           analysisResults.length > 0 && // Phải có file
-                           analysisResults.every(r => r.cropData); // Phải chạy xong Bước 3 (ảnh)
+  const isReadyForScenes = videoData.length > 0 && 
+                           analysisResults.length > 0 && 
+                           analysisResults.every(r => r.cropData);
 
-  // 3. HÀM TẠO AUDIO (Đã cập nhật)
+  // Kiểm tra xem có dữ liệu Inpainting không để hiển thị thông báo
+  const hasInpaintedData = analysisResults.some(r => r.inpaintedData);
+
+  // 3. HÀM TẠO AUDIO (Giữ nguyên)
   const handleGenerateAudio = async () => {
     if (!isReadyForAudio) {
       setError('Vui lòng chạy "Bước 1: Phát hiện Panel" trước.');
       return;
     }
     
-    setLoadingAudio(true); // Cập nhật state
+    setLoadingAudio(true);
     setError('');
-    setSceneData([]); // Reset video cũ nếu tạo lại audio
+    setSceneData([]); 
 
     try {
       const payload = {
         textDataResults: processedTextResults 
       };
       const endpoint = `${API_BASE_URL}/api/comic/video/generate-audio`;
-      // ... (fetch, .json(), ... giữ nguyên) ...
+      
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -81,12 +77,12 @@ const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData 
     } catch (err) {
       setError(err.message);
     } finally {
-      setLoadingAudio(false); // Cập nhật state
+      setLoadingAudio(false);
     }
   };
 
   // ===================================
-  // 4. HÀM MỚI: TẠO SCENES (BƯỚC 6.2)
+  // 4. HÀM MỚI: TẠO SCENES (ĐÃ NÂNG CẤP LOGIC ƯU TIÊN INPAINTING)
   // ===================================
   const handleGenerateScenes = async () => {
     if (!isReadyForScenes) {
@@ -98,15 +94,45 @@ const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData 
     setError('');
 
     try {
-        // Lấy data ảnh (từ Bước 3)
-        const cropData = analysisResults
-            .map(r => r.cropData)
-            .filter(r => r && r.success !== false);
+        // === LOGIC MỚI: Ưu tiên ảnh Inpainting nếu có ===
+        const mergedCropData = analysisResults
+            .filter(r => r.cropData && r.cropData.success !== false)
+            .map(result => {
+                const originalCropData = result.cropData;
+                const inpaintedData = result.inpaintedData; // Lấy dữ liệu từ bước 4.5
 
-        // Gửi cả 2: data audio (duration) và data crop (ảnh)
+                // Nếu không có inpainting, dùng ảnh gốc
+                if (!inpaintedData || !inpaintedData.panels) {
+                    return originalCropData;
+                }
+
+                console.log(`[FE] Đang trộn dữ liệu Inpainting cho file: ${result.fileName}`);
+
+                // Nếu có, thay thế ảnh gốc bằng ảnh sạch
+                const newPanels = originalCropData.panels.map(originalPanel => {
+                    // Tìm panel tương ứng trong dữ liệu inpainting (lưu ý: panelId vs id)
+                    const cleanPanel = inpaintedData.panels.find(p => p.panelId === originalPanel.id);
+
+                    if (cleanPanel && cleanPanel.success && cleanPanel.inpaintedImageB64) {
+                        return {
+                            ...originalPanel,
+                            // QUAN TRỌNG: Ghi đè ảnh gốc bằng ảnh đã xóa bong bóng
+                            croppedImageBase64: cleanPanel.inpaintedImageB64 
+                        };
+                    }
+                    return originalPanel;
+                });
+
+                return {
+                    ...originalCropData,
+                    panels: newPanels
+                };
+            });
+
+        // Gửi payload đã được merge
         const payload = {
             videoData: videoData,
-            cropData: cropData 
+            cropData: mergedCropData 
         };
 
         const endpoint = `${API_BASE_URL}/api/comic/video/generate-scenes`;
@@ -130,7 +156,6 @@ const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData 
     }
   };
 
-  // 5. PHẦN RENDER (Đã cập nhật)
   return (
     <div className="pt-6 bg-slate-900 min-h-screen text-gray-200">
       <h2 className="text-xl font-bold mb-4 text-blue-400 pt-6">6. Tạo Video</h2>
@@ -151,14 +176,14 @@ const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData 
         <button 
           type="button" 
           onClick={handleGenerateAudio}
-          disabled={loadingAudio || loadingScenes || !isReadyForAudio} // Cập nhật disabled
+          disabled={loadingAudio || loadingScenes || !isReadyForAudio} 
           className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg"
         >
           {loadingAudio ? 'Đang tạo audio...' : `Tạo Audio cho ${processedTextResults.length} file`}
         </button>
       </div>
 
-      {/* --- THÊM MỚI: Bước 6.2: Tạo Scene Video --- */}
+      {/* --- Bước 6.2: Tạo Scene Video --- */}
       <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
         <h3 className="text-lg font-semibold text-blue-300 mb-3">Bước 6.2: Tạo Cảnh Quay Video</h3>
         
@@ -167,17 +192,32 @@ const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData 
             Vui lòng chạy "Bước 3: Panel Cropper" VÀ "Bước 6.1: Tạo Audio" trước.
           </p>
         )}
+        
         {isReadyForScenes && (
-            <p className="text-green-400 mb-4">
-              {/* Tính tổng số panel */}
-              Sẵn sàng tạo {videoData.reduce((acc, f) => acc + f.panels.length, 0)} cảnh quay video.
-            </p>
+            <div className="mb-4">
+                <p className="text-green-400">
+                  Sẵn sàng tạo {videoData.reduce((acc, f) => acc + f.panels.length, 0)} cảnh quay video.
+                </p>
+                {/* Hiển thị trạng thái nguồn ảnh */}
+                <div className="mt-2 text-sm p-2 rounded bg-slate-700 inline-block border border-slate-600">
+                    <span className="text-gray-300 font-medium mr-2">Nguồn ảnh:</span>
+                    {hasInpaintedData ? (
+                        <span className="text-green-400 font-bold flex items-center gap-1">
+                             ✓ Ảnh đã xóa bong bóng (Từ Bước 4.5)
+                        </span>
+                    ) : (
+                        <span className="text-yellow-400 font-bold flex items-center gap-1">
+                             ⚠ Ảnh gốc có bong bóng (Chưa chạy Bước 4.5)
+                        </span>
+                    )}
+                </div>
+            </div>
         )}
         
         <button 
           type="button" 
           onClick={handleGenerateScenes}
-          disabled={loadingAudio || loadingScenes || !isReadyForScenes} // Cập nhật disabled
+          disabled={loadingAudio || loadingScenes || !isReadyForScenes} 
           className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg"
         >
           {loadingScenes ? 'Đang tạo cảnh quay (FFmpeg)...' : `Tạo Cảnh Quay Video`}
@@ -189,7 +229,7 @@ const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData 
         <div className="mt-4 bg-red-900/50 border border-red-700 text-red-200 p-3 rounded">{error}</div>
       )}
 
-      {/* --- Hiển thị kết quả Audio (Giữ nguyên) --- */}
+      {/* --- Hiển thị kết quả Audio --- */}
       {videoData.length > 0 && (
         <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
           <h3 className="text-lg font-semibold text-blue-300 mb-4">Kết quả Audio (Bước 6.1)</h3>
@@ -223,7 +263,7 @@ const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData 
         </div>
       )}
 
-      {/* --- THÊM MỚI: Hiển thị kết quả Scene (Bước 6.2) --- */}
+      {/* --- Hiển thị kết quả Scene --- */}
       {sceneData.length > 0 && (
         <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
           <h3 className="text-lg font-semibold text-blue-300 mb-4">Kết quả Cảnh Quay (Bước 6.2)</h3>
@@ -239,7 +279,7 @@ const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData 
                         controls
                         src={panel.videoUrl}
                         className="w-full rounded"
-                        preload="metadata" // Tải metadata để hiển thị thumbnail (nếu có)
+                        preload="metadata"
                       >
                         Video clip không được hỗ trợ.
                       </video>
