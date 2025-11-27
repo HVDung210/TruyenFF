@@ -13,7 +13,7 @@ const HF_API_TOKEN = process.env.HUGGING_FACE_API_TOKEN || '';
 const HF_MODEL = process.env.HUGGING_FACE_MODEL || 'stabilityai/stable-diffusion-xl-base-1.0';
 
 // Google / Gemini
-const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || 'AIzaSyBbfbq5diB83Vq7Ts4yI4MMG5waTRvhQ4s';
+const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || undefined;
 const GOOGLE_CLOUD_PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT_ID || undefined;
 
 // Google Cloud Storage
@@ -22,7 +22,7 @@ const GCS_BUCKET = process.env.GCS_BUCKET || 'your-bucket-name';
 const GCS_BUCKET_NAME = process.env.GCS_BUCKET_NAME || process.env.GCS_BUCKET || 'truyenff-images';
 
 // JWT Secret
-const JWT_SECRET = process.env.JWT_SECRET || '040c52602904583bdf80ac4f18de14d6e3b30b39381d08d94c6bbb4c8445fcdb8041bad086440355a0c5a57efcd7dcf03a894fcf279f6167ec64a033916ca7c6';
+const JWT_SECRET = process.env.JWT_SECRET || '';
 
 module.exports = {
   PORT,

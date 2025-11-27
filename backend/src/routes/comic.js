@@ -34,6 +34,8 @@ router.post('/comic/video/remove-bubbles', express.json({limit: '50mb'}), contro
 router.post('/comic/video/generate-audio', controller.generateAudio);
 router.post('/comic/video/generate-scenes', controller.generateScenes);
 
+router.post('/comic/video/generate-ai-video', express.json({limit: '100mb'}), controller.generateVideoAI);
+
 module.exports = router;
 
 

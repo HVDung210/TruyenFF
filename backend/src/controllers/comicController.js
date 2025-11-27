@@ -1,5 +1,7 @@
 const path = require('path');
 const fs = require('fs');
+const axios = require('axios');
+const https = require('https');
 const { spawn } = require('child_process');
 const textToSpeechService = require('../services/textToSpeechService');
 const videoService = require('../services/videoService');
@@ -10,10 +12,12 @@ if (!fs.existsSync(TEMP_DIR)) {
   fs.mkdirSync(TEMP_DIR, { recursive: true });
 }
 
+
 // Path to Python scripts (Đảm bảo cả 2 đều được định nghĩa)
 const PY_SCRIPT_DETECT = path.join(__dirname, '..', 'scripts', 'panel_detector_yolo.py');
 const PY_SCRIPT_CROP = path.join(__dirname, '..', 'scripts', 'panel_cropper.py');
 const PY_SCRIPT_INPAINT = path.join(__dirname, '..', 'scripts', 'panel_inpainter.py');
+const PY_SCRIPT_ANIMATE = path.join(__dirname, '..', 'scripts', 'panel_animator.py');
 
 /**
  * Hàm chung để gọi script Python
@@ -432,6 +436,166 @@ exports.removeBubbles = async (req, res) => {
 
   } catch (err) {
     console.error('[removeBubbles] Controller Fatal Error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+/**
+ * HÀM MỚI: Tạo video AI từ ảnh (SVD)
+ */
+
+
+// exports.generateVideoAI = async (req, res) => {
+//   try {
+//     const { filesData } = req.body; 
+    
+//     if (!filesData || !Array.isArray(filesData)) {
+//       return res.status(400).json({ error: 'Thiếu filesData hoặc sai định dạng' });
+//     }
+
+//     console.log(`[ComicController] Bắt đầu tạo video AI cho ${filesData.length} file...`);
+
+//     // 1. TẠO FILE TẠM CHỨA INPUT JSON
+//     // Thay vì gửi qua pipe, ta ghi xuống đĩa để Python đọc cho ổn định
+//     const uniqueId = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+//     const inputFilePath = path.join(TEMP_DIR, `input_svd_${uniqueId}.json`);
+    
+//     // Ghi file (Sync cho đơn giản vì đây là blocking operation cần thiết)
+//     fs.writeFileSync(inputFilePath, JSON.stringify({ filesData }), 'utf8');
+//     console.log(`[ComicController] Đã ghi input file: ${inputFilePath}`);
+
+//     // 2. GỌI PYTHON
+//     const pythonCmd = process.env.PYTHON_CMD || path.join(__dirname, '..', '..', '.venv', 'Scripts', 'python.exe');
+//     console.log('[ComicController] Using Python Path:', pythonCmd);
+    
+//     // Truyền đường dẫn file input vào arguments
+//     const py = spawn(pythonCmd, [PY_SCRIPT_ANIMATE, inputFilePath], { stdio: ['ignore', 'pipe', 'pipe'] });
+
+//     let stdout = '';
+//     let stderr = '';
+
+//     // Lắng nghe dữ liệu trả về
+//     if (py.stdout) {
+//         py.stdout.on('data', (data) => { stdout += data.toString(); });
+//     }
+
+//     // 3. Nhận log/lỗi từ Python
+//     if (py.stderr) {
+//       py.stderr.on('data', (data) => { 
+//           const msg = data.toString();
+//           stderr += msg;
+//           console.log('[PYTHON SVD]', msg.trim()); 
+//       });
+//     }
+
+//     py.on('close', (code) => {
+//       // Dọn dẹp file input
+//       try {
+//           if (fs.existsSync(inputFilePath)) fs.unlinkSync(inputFilePath);
+//       } catch (e) { console.warn('Không thể xóa file input tạm:', e.message); }
+
+//       if (code !== 0) {
+//         console.error('[generateVideoAI] Python process exited with code:', code);
+        
+//         // --- SỬA ĐỔI QUAN TRỌNG: In cả stdout để xem lỗi ---
+//         console.error('STDERR (Log):', stderr);
+//         console.error('STDOUT (Data/Error):', stdout); 
+//         // --------------------------------------------------
+
+//         return res.status(500).json({ 
+//             error: 'Lỗi sinh video AI (Python Script Failed)', 
+//             details: `Log: ${stderr}\nOutput: ${stdout}` // Trả về cả 2 để Frontend xem được
+//         });
+//       }
+
+//       try {
+//         const result = JSON.parse(stdout);
+//         if (result.error) return res.status(500).json({ error: result.error });
+
+//         return res.json({
+//           success: true,
+//           data: result.data,
+//           message: 'Sinh video AI thành công'
+//         });
+
+//       } catch (e) {
+//         console.error('JSON Parse Error:', e);
+//         return res.status(500).json({ 
+//             error: 'Lỗi đọc kết quả JSON từ Python', 
+//             details: e.message,
+//             rawOutput: stdout.slice(0, 1000)
+//         });
+//       }
+//     });
+    
+//     py.on('error', (err) => {
+//       console.error('[ComicController] Failed to spawn python:', err);
+//       // Dọn dẹp file nếu spawn lỗi
+//       if (fs.existsSync(inputFilePath)) fs.unlinkSync(inputFilePath);
+//       res.status(500).json({ error: 'Failed to start Python script', details: err.message });
+//     });
+
+//   } catch (err) {
+//     console.error('[generateVideoAI] Controller Exception:', err);
+//     return res.status(500).json({ error: err.message });
+//   }
+// };
+
+// --- CẤU HÌNH KẾT NỐI COLAB ---
+// URL này thay đổi mỗi lần bạn chạy lại Colab, hãy cập nhật nó
+const COLAB_API_URL = "https://f9f7ddb8b612.ngrok-free.app/";
+
+const httpsAgent = new https.Agent({ keepAlive: true });
+
+exports.generateVideoAI = async (req, res) => {
+  try {
+    const { filesData } = req.body;
+    if (!filesData) return res.status(400).json({ error: 'Missing filesData' });
+
+    console.log(`[ComicController] Bắt đầu gửi ${filesData.length} file lên Colab...`);
+    const finalResults = [];
+
+    // GỬI TỪNG PANEL MỘT (TRÁNH TIMEOUT)
+    for (const file of filesData) {
+        console.log(`\n📂 File: ${file.fileName}`);
+        const processedPanels = [];
+
+        for (const panel of file.panels) {
+            console.log(`   👉 Gửi Panel ${panel.panelId} (${panel.duration}s)...`);
+            
+            try {
+                // Gửi 1 panel duy nhất
+                const response = await axios.post(`${COLAB_API_URL}/generate`, {
+                    filesData: [{
+                        fileName: file.fileName,
+                        panels: [panel]
+                    }]
+                }, {
+                    timeout: 600000, // 10 phút
+                    httpsAgent: httpsAgent,
+                    maxBodyLength: Infinity,
+                    maxContentLength: Infinity
+                });
+
+                if (response.data.success) {
+                    const resultPanel = response.data.data[0].panels[0];
+                    processedPanels.push(resultPanel);
+                    console.log(`      ✅ OK (Mode: ${resultPanel.mode || 'N/A'})`);
+                } else {
+                    throw new Error('Colab trả về lỗi');
+                }
+            } catch (err) {
+                console.error(`      ❌ Lỗi:`, err.message);
+                processedPanels.push({ panelId: panel.panelId, success: false, error: err.message });
+            }
+        }
+        finalResults.push({ fileName: file.fileName, panels: processedPanels });
+    }
+
+    return res.json({ success: true, data: finalResults });
+
+  } catch (err) {
+    console.error('[ComicController] Fatal Error:', err.message);
     return res.status(500).json({ error: err.message });
   }
 };

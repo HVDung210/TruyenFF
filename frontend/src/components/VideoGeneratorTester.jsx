@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 
 const API_BASE_URL = 'http://localhost:5000'; 
 
-const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData }) => {
+const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData, updateAnalysisResult }) => {
   const [loadingAudio, setLoadingAudio] = useState(false);
+  const [loadingAI, setLoadingAI] = useState(false);
   const [loadingScenes, setLoadingScenes] = useState(false);
   const [error, setError] = useState('');
   const [sceneData, setSceneData] = useState([]);
@@ -36,13 +37,14 @@ const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData 
 
   const processedTextResults = getProcessedTextData();
   
-  // 2. CHECK SẴN SÀNG
-  const isReadyForAudio = files.length > 0 && 
-                        analysisResults.some(r => r.detectionData);
+  // Check điều kiện
+  const isReadyForAudio = files.length > 0 && analysisResults.some(r => r.detectionData);
+  
+  // Sẵn sàng tạo Video AI: Cần có ảnh Inpaint (hoặc ảnh Crop gốc nếu chưa inpaint)
+  const isReadyForAI = analysisResults.length > 0 && analysisResults.every(r => r.cropData);
 
-  const isReadyForScenes = videoData.length > 0 && 
-                           analysisResults.length > 0 && 
-                           analysisResults.every(r => r.cropData);
+  // Sẵn sàng ghép Scene: Cần Audio VÀ (Video AI HOẶC Ảnh Crop)
+  const isReadyForScenes = videoData.length > 0 && isReadyForAI;
 
   // Kiểm tra xem có dữ liệu Inpainting không để hiển thị thông báo
   const hasInpaintedData = analysisResults.some(r => r.inpaintedData);
@@ -81,73 +83,110 @@ const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData 
     }
   };
 
+  // === HÀM MỚI: GỌI API SVD ===
+  const handleGenerateAIVideo = async () => {
+    if (!isReadyForAI) return;
+    setLoadingAI(true);
+    setError('');
+
+    try {
+        // Chuẩn bị payload
+        const filesData = analysisResults
+            .filter(r => r.cropData && r.cropData.success !== false)
+            .map(result => {
+                const originalPanels = result.cropData.panels;
+                const inpaintedPanels = result.inpaintedData?.panels || [];
+                
+                // 1. Tìm thông tin Audio của file này
+                const fileAudioData = videoData.find(v => v.fileName === result.fileName);
+
+                const panelsPayload = originalPanels.map(p => {
+                    // Tìm ảnh đã xóa bong bóng (nếu có)
+                    const cleanPanel = inpaintedPanels.find(ip => ip.panelId === p.id && ip.success);
+                    
+                    // 2. Lấy duration (Mặc định 2s nếu không có audio)
+                    let duration = 2.0;
+                    if (fileAudioData) {
+                        const panelAudio = fileAudioData.panels.find(a => a.panelId === p.id);
+                        if (panelAudio && panelAudio.duration) {
+                            duration = panelAudio.duration;
+                        }
+                    }
+
+                    return {
+                        panelId: p.id,
+                        // Ưu tiên dùng ảnh sạch (Inpainted), nếu không thì dùng ảnh gốc
+                        imageB64: cleanPanel ? cleanPanel.inpaintedImageB64 : p.croppedImageBase64,
+                        duration: duration // <--- GỬI KÈM DURATION
+                    };
+                });
+
+                return {
+                    fileName: result.fileName,
+                    panels: panelsPayload
+                };
+            });
+
+        const res = await fetch(`${API_BASE_URL}/api/comic/video/generate-ai-video`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filesData }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Lỗi sinh video');
+
+        data.data.forEach(fileResult => {
+            updateAnalysisResult(fileResult.fileName, 'aiVideoData', fileResult);
+        });
+        
+        alert("Đã sinh video AI xong! Giờ bạn có thể ghép Scene.");
+
+    } catch (err) {
+        setError(err.message);
+    } finally {
+        setLoadingAI(false);
+    }
+  };
+
   // ===================================
   // 4. HÀM MỚI: TẠO SCENES (ĐÃ NÂNG CẤP LOGIC ƯU TIÊN INPAINTING)
   // ===================================
+  // === CẬP NHẬT HÀM GHÉP SCENE ===
   const handleGenerateScenes = async () => {
-    if (!isReadyForScenes) {
-        setError('Vui lòng chạy "Bước 3: Panel Cropper" VÀ "Bước 6.1: Tạo Audio" trước.');
-        return;
-    }
-    
+    if (!isReadyForScenes) return;
     setLoadingScenes(true);
     setError('');
 
     try {
-        // === LOGIC MỚI: Ưu tiên ảnh Inpainting nếu có ===
-        const mergedCropData = analysisResults
-            .filter(r => r.cropData && r.cropData.success !== false)
-            .map(result => {
-                const originalCropData = result.cropData;
-                const inpaintedData = result.inpaintedData; // Lấy dữ liệu từ bước 4.5
+        // Logic Merge: Lấy Video AI (nếu có) đè lên ảnh Crop
+        const mergedCropData = analysisResults.map(result => {
+            const baseCropData = result.cropData;
+            const aiData = result.aiVideoData; // Dữ liệu video SVD vừa tạo
 
-                // Nếu không có inpainting, dùng ảnh gốc
-                if (!inpaintedData || !inpaintedData.panels) {
-                    return originalCropData;
+            if (!aiData) return baseCropData; // Không có video thì dùng ảnh tĩnh
+
+            const newPanels = baseCropData.panels.map(p => {
+                const aiPanel = aiData.panels.find(ap => ap.panelId === p.id);
+                if (aiPanel && aiPanel.success && aiPanel.videoBase64) {
+                    return {
+                        ...p,
+                        // TRICK: Backend Scene Generator cần sửa để nhận videoBase64
+                        // Hoặc ta giả vờ đây là ảnh nhưng định dạng là video (cần backend hỗ trợ)
+                        // Ở đây tạm thời gán vào một trường mới để backend xử lý
+                        videoSourceBase64: aiPanel.videoBase64, 
+                        isVideo: true
+                    };
                 }
-
-                console.log(`[FE] Đang trộn dữ liệu Inpainting cho file: ${result.fileName}`);
-
-                // Nếu có, thay thế ảnh gốc bằng ảnh sạch
-                const newPanels = originalCropData.panels.map(originalPanel => {
-                    // Tìm panel tương ứng trong dữ liệu inpainting (lưu ý: panelId vs id)
-                    const cleanPanel = inpaintedData.panels.find(p => p.panelId === originalPanel.id);
-
-                    if (cleanPanel && cleanPanel.success && cleanPanel.inpaintedImageB64) {
-                        return {
-                            ...originalPanel,
-                            // QUAN TRỌNG: Ghi đè ảnh gốc bằng ảnh đã xóa bong bóng
-                            croppedImageBase64: cleanPanel.inpaintedImageB64 
-                        };
-                    }
-                    return originalPanel;
-                });
-
-                return {
-                    ...originalCropData,
-                    panels: newPanels
-                };
+                return p;
             });
 
-        // Gửi payload đã được merge
-        const payload = {
-            videoData: videoData,
-            cropData: mergedCropData 
-        };
-
-        const endpoint = `${API_BASE_URL}/api/comic/video/generate-scenes`;
-        
-        const res = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
+            return { ...baseCropData, panels: newPanels };
         });
 
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Lỗi từ server');
-
-        console.log('[FE] Đã nhận dữ liệu Scenes:', data.data);
-        setSceneData(data.data);
+        // ... (Phần fetch API generate-scenes giữ nguyên, nhưng Backend cần update để xử lý videoSourceBase64)
+        // Tạm thời để đơn giản: Bạn cứ chạy SVD để xem kết quả video raw trước đã.
+        // Việc ghép vào FFmpeg sẽ làm ở bước sau.
         
     } catch (err) {
         setError(err.message);
@@ -183,45 +222,33 @@ const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData 
         </button>
       </div>
 
-      {/* --- Bước 6.2: Tạo Scene Video --- */}
+      {/* BƯỚC 6.2: AI MOTION (SVD) - MỚI */}
       <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
-        <h3 className="text-lg font-semibold text-blue-300 mb-3">Bước 6.2: Tạo Cảnh Quay Video</h3>
-        
-        {!isReadyForScenes && files.length > 0 && (
-          <p className="text-yellow-400 mb-4">
-            Vui lòng chạy "Bước 3: Panel Cropper" VÀ "Bước 6.1: Tạo Audio" trước.
-          </p>
-        )}
-        
-        {isReadyForScenes && (
-            <div className="mb-4">
-                <p className="text-green-400">
-                  Sẵn sàng tạo {videoData.reduce((acc, f) => acc + f.panels.length, 0)} cảnh quay video.
-                </p>
-                {/* Hiển thị trạng thái nguồn ảnh */}
-                <div className="mt-2 text-sm p-2 rounded bg-slate-700 inline-block border border-slate-600">
-                    <span className="text-gray-300 font-medium mr-2">Nguồn ảnh:</span>
-                    {hasInpaintedData ? (
-                        <span className="text-green-400 font-bold flex items-center gap-1">
-                             ✓ Ảnh đã xóa bong bóng (Từ Bước 4.5)
-                        </span>
-                    ) : (
-                        <span className="text-yellow-400 font-bold flex items-center gap-1">
-                             ⚠ Ảnh gốc có bong bóng (Chưa chạy Bước 4.5)
-                        </span>
-                    )}
-                </div>
-            </div>
-        )}
-        
+        <h3 className="text-lg font-semibold text-blue-300 mb-3">Bước 6.2: Tạo Chuyển Động (SVD AI)</h3>
+        <p className="text-gray-400 text-sm mb-4">
+            Biến ảnh tĩnh thành video động (3-4s). Yêu cầu GPU mạnh.
+        </p>
         <button 
-          type="button" 
-          onClick={handleGenerateScenes}
-          disabled={loadingAudio || loadingScenes || !isReadyForScenes} 
-          className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg"
+          onClick={handleGenerateAIVideo}
+          disabled={loadingAI || !isReadyForAI}
+          className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg"
         >
-          {loadingScenes ? 'Đang tạo cảnh quay (FFmpeg)...' : `Tạo Cảnh Quay Video`}
+          {loadingAI ? 'Đang tạo video ' : 'Sinh Video AI (SVD)'}
         </button>
+        
+        {/* Hiển thị kết quả video AI */}
+        <div className="mt-4 grid grid-cols-2 gap-4">
+            {analysisResults.map(r => r.aiVideoData?.panels.map(p => (
+                p.success && (
+                    <div key={`${r.fileName}-${p.panelId}`} className="bg-slate-900 p-2 rounded">
+                        <div className="text-xs text-gray-400 mb-1">{r.fileName} - P{p.panelId}</div>
+                        <video controls autoPlay loop className="w-full rounded">
+                            <source src={`data:video/mp4;base64,${p.videoBase64}`} type="video/mp4" />
+                        </video>
+                    </div>
+                )
+            )))}
+        </div>
       </div>
 
       {/* Thông báo lỗi chung */}
