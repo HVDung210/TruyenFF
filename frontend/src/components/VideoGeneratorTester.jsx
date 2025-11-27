@@ -159,36 +159,57 @@ const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData,
     setError('');
 
     try {
-        // Logic Merge: Lấy Video AI (nếu có) đè lên ảnh Crop
+        // 1. CHUẨN BỊ PAYLOAD: KẾT HỢP CROP DATA VÀ VIDEO AI
         const mergedCropData = analysisResults.map(result => {
             const baseCropData = result.cropData;
-            const aiData = result.aiVideoData; // Dữ liệu video SVD vừa tạo
+            
+            // Tìm kết quả video AI tương ứng
+            const aiData = analysisResults.find(r => r.fileName === result.fileName)?.aiVideoData;
 
-            if (!aiData) return baseCropData; // Không có video thì dùng ảnh tĩnh
-
+            // Map qua từng panel để nhét video source vào
             const newPanels = baseCropData.panels.map(p => {
-                const aiPanel = aiData.panels.find(ap => ap.panelId === p.id);
-                if (aiPanel && aiPanel.success && aiPanel.videoBase64) {
-                    return {
-                        ...p,
-                        // TRICK: Backend Scene Generator cần sửa để nhận videoBase64
-                        // Hoặc ta giả vờ đây là ảnh nhưng định dạng là video (cần backend hỗ trợ)
-                        // Ở đây tạm thời gán vào một trường mới để backend xử lý
-                        videoSourceBase64: aiPanel.videoBase64, 
-                        isVideo: true
-                    };
+                let videoSource = null;
+
+                // Nếu có video AI thì lấy video AI
+                if (aiData) {
+                    const aiPanel = aiData.panels.find(ap => ap.panelId === p.id);
+                    if (aiPanel && aiPanel.success && aiPanel.videoBase64) {
+                        videoSource = aiPanel.videoBase64;
+                    }
                 }
-                return p;
+
+                return {
+                    ...p,
+                    // TRUYỀN VIDEO 2s XUỐNG ĐỂ BACKEND NỐI DÀI
+                    videoSourceBase64: videoSource, 
+                    // Cờ đánh dấu để Backend biết đây là video
+                    isVideo: !!videoSource 
+                };
             });
 
             return { ...baseCropData, panels: newPanels };
         });
 
-        // ... (Phần fetch API generate-scenes giữ nguyên, nhưng Backend cần update để xử lý videoSourceBase64)
-        // Tạm thời để đơn giản: Bạn cứ chạy SVD để xem kết quả video raw trước đã.
-        // Việc ghép vào FFmpeg sẽ làm ở bước sau.
+        // 2. GỌI API GENERATE SCENES
+        const payload = {
+            videoData: videoData, // Chứa thông tin duration audio
+            cropData: mergedCropData // Chứa source ảnh/video 2s
+        };
+
+        const res = await fetch(`${API_BASE_URL}/api/comic/video/generate-scenes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Lỗi tạo scene');
+
+        console.log('[FE] Scene Data:', data.data);
+        setSceneData(data.data); // <--- ĐÂY MỚI LÀ VIDEO 7 GIÂY
         
     } catch (err) {
+        console.error(err);
         setError(err.message);
     } finally {
         setLoadingScenes(false);
@@ -290,27 +311,46 @@ const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData,
         </div>
       )}
 
-      {/* --- Hiển thị kết quả Scene --- */}
+      {/* THÊM NÚT NÀY VÀO DƯỚI NÚT "SINH VIDEO AI" */}
+      <div className="mt-6 border-t border-slate-700 pt-6">
+          <h3 className="text-lg font-semibold text-blue-300 mb-3">Bước 6.3: Ghép Scene (Final)</h3>
+          <p className="text-gray-400 text-sm mb-4">
+            Bước này sẽ nối dài video AI (2s) để khớp với độ dài Audio (ví dụ 7s) bằng hiệu ứng Boomerang.
+          </p>
+          
+          <button 
+            onClick={handleGenerateScenes}
+            disabled={loadingScenes || !isReadyForScenes}
+            className="w-full bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg"
+          >
+            {loadingScenes ? 'Đang xử lý FFmpeg...' : 'Ghép Scene & Nối dài Video'}
+          </button>
+      </div>
+
+      {/* HIỂN THỊ KẾT QUẢ CUỐI CÙNG (SCENE DATA) */}
       {sceneData.length > 0 && (
-        <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
-          <h3 className="text-lg font-semibold text-blue-300 mb-4">Kết quả Cảnh Quay (Bước 6.2)</h3>
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mt-6">
+          <h3 className="text-lg font-semibold text-orange-400 mb-4">Kết quả Scene Hoàn Chỉnh</h3>
           <div className="space-y-4">
             {sceneData.map((file) => (
               <div key={file.fileName} className="bg-slate-700 p-3 rounded-lg">
                 <h4 className="font-semibold text-blue-300 mb-2">{file.fileName}</h4>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {file.panels.map((panel) => (
-                    <div key={panel.panelId} className="bg-slate-600 p-2 rounded">
-                      <p className="text-sm font-medium mb-2">Panel {panel.panelId}</p>
+                    <div key={panel.panelId} className="bg-slate-900 p-2 rounded">
+                      <p className="text-sm font-medium mb-1">Panel {panel.panelId}</p>
+                      
+                      {/* VIDEO FINAL (7s) */}
                       <video
                         controls
-                        src={panel.videoUrl}
-                        className="w-full rounded"
-                        preload="metadata"
-                      >
-                        Video clip không được hỗ trợ.
-                      </video>
-                      <p className="text-xs text-gray-400 mt-1 text-center">({panel.duration}s)</p>
+                        src={panel.videoUrl} 
+                        className="w-full rounded border border-orange-500/30"
+                      />
+                      
+                      <div className="flex justify-between text-xs text-gray-400 mt-1">
+                        <span>Duration: {panel.duration}s</span>
+                        <span className="text-orange-400">Final Scene</span>
+                      </div>
                     </div>
                   ))}
                 </div>
