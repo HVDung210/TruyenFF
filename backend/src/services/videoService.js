@@ -30,51 +30,65 @@ class VideoService {
         let command = "";
 
         if (isVideo) {
-            // === LOGIC BOOMERANG (LẶP TIẾN-LÙI) ===
-            // 1. Resize video input
-            // 2. Tách làm 2 luồng: xuôi (f) và ngược (r)
-            // 3. Nối f + r lại với nhau (Boomerang)
-            // 4. Lặp vô tận đoạn đó (loop=-1)
-            // 5. Cắt đúng bằng thời lượng audio (trim)
-            // 6. Fade in/out
+            // === LOGIC BOOMERANG (VIDEO) ===
+            // Cải tiến:
+            // 1. flags=lanczos: Thuật toán resize sắc nét nhất (tốt khi upscaling)
+            // 2. -crf 17: Chất lượng hình ảnh cực cao (gần như không nén). (Mặc định là 23, càng nhỏ càng nét)
+            // 3. -preset slow: Nén chậm hơn để giữ chi tiết tốt hơn
             
             command = [
                 'ffmpeg',
                 `-i "${tempInputPath}"`,
                 '-vf',
-                `"scale=${resolution_w}:${resolution_h}:force_original_aspect_ratio=decrease,pad=${resolution_w}:${resolution_h}:(ow-iw)/2:(oh-ih)/2,` +
+                // Thêm flags=lanczos vào bộ lọc scale
+                `"scale=${resolution_w}:${resolution_h}:force_original_aspect_ratio=decrease:flags=lanczos,pad=${resolution_w}:${resolution_h}:(ow-iw)/2:(oh-ih)/2,` +
                 `split[f][r];[r]reverse[rev];[f][rev]concat=n=2:v=1[bm];[bm]loop=-1:size=32767:start=0,` +
                 `trim=duration=${safeDuration},setpts=PTS-STARTPTS,` +
                 `fade=t=in:st=0:d=${fadeDuration},fade=t=out:st=${safeDuration - fadeDuration}:d=${fadeDuration}"`,
-                '-c:v libx264', '-pix_fmt yuv420p', '-y',
+                
+                '-c:v libx264',
+                '-preset slow',  // Giữ chi tiết tốt hơn
+                '-crf 17',       // Mức chất lượng cao (Visually Lossless)
+                '-pix_fmt yuv420p',
+                '-y',
                 `"${videoPath}"`
             ].join(' ');
 
         } else {
-            // === LOGIC ẢNH TĨNH (KEN BURNS) ===
-            // ... (Giữ nguyên logic cũ của bạn) ...
-             const zoompanDurationFrames = safeDuration * 25;
-             const fadeOutStartTime = safeDuration - fadeDuration;
-             command = [
+            // === LOGIC KEN BURNS (ẢNH TĨNH) ===
+            // Cũng áp dụng Lanczos và CRF 17
+            const zoompanDurationFrames = safeDuration * 25;
+            const fadeOutStartTime = safeDuration - fadeDuration;
+
+            command = [
                 'ffmpeg',
                 '-loop 1',
                 `-i "${tempInputPath}"`,
                 '-vf',
                 `"zoompan=z='min(zoom+0.001,1.1)':d=${zoompanDurationFrames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)',` +
-                `scale=w=${resolution_w}:h=${resolution_h}:force_original_aspect_ratio=decrease,` +
+                // Thêm flags=lanczos
+                `scale=w=${resolution_w}:h=${resolution_h}:force_original_aspect_ratio=decrease:flags=lanczos,` +
                 `pad=w=${resolution_w}:h=${resolution_h}:x=(ow-iw)/2:y=(oh-ih)/2,` +
                 `fade=t=in:st=0:d=${fadeDuration},` +
                 `fade=t=out:st=${fadeOutStartTime}:d=${fadeDuration}"`,
-                '-c:v libx264', '-pix_fmt yuv420p', '-t', safeDuration, '-y',
+                
+                '-c:v libx264',
+                '-preset slow',
+                '-crf 17', // Chất lượng cao
+                '-pix_fmt yuv420p',
+                '-t', safeDuration,
+                '-y',
                 `"${videoPath}"`
             ].join(' ');
         }
 
         try {
+            console.log(`[VideoService] Đang tạo scene HD: ${outputFileName}`);
             await exec(command);
             if(fs.existsSync(tempInputPath)) fs.unlinkSync(tempInputPath);
             return { videoPath, videoUrl };
         } catch (error) {
+            console.error(`[VideoService] Lỗi FFmpeg:`, error);
             if(fs.existsSync(tempInputPath)) fs.unlinkSync(tempInputPath);
             throw new Error(`FFmpeg failed: ${error.message}`);
         }

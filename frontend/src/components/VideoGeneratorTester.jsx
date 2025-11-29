@@ -258,40 +258,6 @@ const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData,
         </button>
       </div>
 
-      {/* BƯỚC 6.2: AI MOTION (SVD) - MỚI */}
-      <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
-        <h3 className="text-lg font-semibold text-blue-300 mb-3">Bước 6.2: Tạo Chuyển Động (SVD AI)</h3>
-        <p className="text-gray-400 text-sm mb-4">
-            Biến ảnh tĩnh thành video động (3-4s). Yêu cầu GPU mạnh.
-        </p>
-        <button 
-          onClick={handleGenerateAIVideo}
-          disabled={loadingAI || !isReadyForAI}
-          className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg"
-        >
-          {loadingAI ? 'Đang tạo video ' : 'Sinh Video AI (SVD)'}
-        </button>
-        
-        {/* Hiển thị kết quả video AI */}
-        <div className="mt-4 grid grid-cols-2 gap-4">
-            {analysisResults.map(r => r.aiVideoData?.panels.map(p => (
-                p.success && (
-                    <div key={`${r.fileName}-${p.panelId}`} className="bg-slate-900 p-2 rounded">
-                        <div className="text-xs text-gray-400 mb-1">{r.fileName} - P{p.panelId}</div>
-                        <video controls autoPlay loop className="w-full rounded">
-                            <source src={`data:video/mp4;base64,${p.videoBase64}`} type="video/mp4" />
-                        </video>
-                    </div>
-                )
-            )))}
-        </div>
-      </div>
-
-      {/* Thông báo lỗi chung */}
-      {error && (
-        <div className="mt-4 bg-red-900/50 border border-red-700 text-red-200 p-3 rounded">{error}</div>
-      )}
-
       {/* --- Hiển thị kết quả Audio --- */}
       {videoData.length > 0 && (
         <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
@@ -326,11 +292,47 @@ const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData,
         </div>
       )}
 
+      {/* BƯỚC 6.2: AI MOTION (SVD) - MỚI */}
+      <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
+        <h3 className="text-lg font-semibold text-blue-300 mb-3">Bước 6.2: Tạo Chuyển Động (SVD AI)</h3>
+        <p className="text-gray-400 text-sm mb-4">
+            Sinh video AI.
+        </p>
+        <button 
+          onClick={handleGenerateAIVideo}
+          disabled={loadingAI || !isReadyForAI}
+          className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg"
+        >
+          {loadingAI ? 'Đang tạo video ' : 'Sinh Video AI (SVD)'}
+        </button>
+        
+        {/* Hiển thị kết quả video AI */}
+        <div className="mt-4 grid grid-cols-2 gap-4">
+            {analysisResults.map(r => r.aiVideoData?.panels.map(p => (
+                p.success && (
+                    <div key={`${r.fileName}-${p.panelId}`} className="bg-slate-900 p-2 rounded">
+                        <div className="text-xs text-gray-400 mb-1">{r.fileName} - P{p.panelId}</div>
+                        <video controls autoPlay loop className="w-full rounded">
+                            <source src={`data:video/mp4;base64,${p.videoBase64}`} type="video/mp4" />
+                        </video>
+                    </div>
+                )
+            )))}
+        </div>
+      </div>
+
+      {/* Thông báo lỗi chung */}
+      {error && (
+        <div className="mt-4 bg-red-900/50 border border-red-700 text-red-200 p-3 rounded">{error}</div>
+      )}
+
+      
+
       {/* THÊM NÚT NÀY VÀO DƯỚI NÚT "SINH VIDEO AI" */}
-      <div className="mt-6 border-t border-slate-700 pt-6">
+      <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
           <h3 className="text-lg font-semibold text-blue-300 mb-3">Bước 6.3: Ghép Scene (Final)</h3>
           <p className="text-gray-400 text-sm mb-4">
-            Bước này sẽ nối dài video AI (2s) để khớp với độ dài Audio (ví dụ 7s) bằng hiệu ứng Boomerang.
+            Ghép scene bằng hiệu ứng Boomerang.
           </p>
           
           <button 

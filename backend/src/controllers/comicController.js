@@ -444,7 +444,7 @@ exports.removeBubbles = async (req, res) => {
 
 // --- CẤU HÌNH KẾT NỐI KAGGLE ---
 // URL này thay đổi mỗi lần bạn chạy lại Kaggle, hãy cập nhật nó
-const KAGGLE_API_URL = "https://c38a50e274fc.ngrok-free.app"; // <--- URL NGROK TỪ KAGGLE
+const KAGGLE_API_URL = "https://e19bfa96977d.ngrok-free.app"; // <--- URL NGROK TỪ KAGGLE
 
 const httpsAgent = new https.Agent({ keepAlive: true });
 
@@ -495,7 +495,7 @@ exports.generateVideoAI = async (req, res) => {
                     if (analysis && analysis.motion_score) {
                         motionParams.motion_bucket_id = analysis.motion_score;
                         motionParams.fps = analysis.recommended_fps || 7;
-                        console.log(`      💡 Gemini bảo: "${analysis.category}" -> Motion: ${motionParams.motion_bucket_id}`);
+                        console.log(`      💡 Gemini: "${analysis.category}", Motion: ${motionParams.motion_bucket_id}`);
                     }
                 } else {
                     console.warn("      ⚠️ Không tìm thấy ảnh để phân tích, dùng tham số mặc định.");
