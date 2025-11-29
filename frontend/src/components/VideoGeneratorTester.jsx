@@ -90,21 +90,21 @@ const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData,
     setError('');
 
     try {
-        // Chuẩn bị payload
+        // Chuẩn bị payload: Gửi đầy đủ dữ liệu để Backend tự chọn
         const filesData = analysisResults
             .filter(r => r.cropData && r.cropData.success !== false)
             .map(result => {
                 const originalPanels = result.cropData.panels;
                 const inpaintedPanels = result.inpaintedData?.panels || [];
                 
-                // 1. Tìm thông tin Audio của file này
+                // Tìm thông tin Audio để lấy duration
                 const fileAudioData = videoData.find(v => v.fileName === result.fileName);
 
                 const panelsPayload = originalPanels.map(p => {
-                    // Tìm ảnh đã xóa bong bóng (nếu có)
+                    // Tìm ảnh đã xóa bong bóng tương ứng
                     const cleanPanel = inpaintedPanels.find(ip => ip.panelId === p.id && ip.success);
                     
-                    // 2. Lấy duration (Mặc định 2s nếu không có audio)
+                    // Tìm duration
                     let duration = 2.0;
                     if (fileAudioData) {
                         const panelAudio = fileAudioData.panels.find(a => a.panelId === p.id);
@@ -115,9 +115,21 @@ const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData,
 
                     return {
                         panelId: p.id,
-                        // Ưu tiên dùng ảnh sạch (Inpainted), nếu không thì dùng ảnh gốc
+                        
+                        // --- [QUAN TRỌNG] GỬI CẢ 2 LOẠI ẢNH ---
+                        
+                        // 1. Ảnh gốc sắc nét (Dành cho Gemini phân tích nét vẽ/hành động)
+                        croppedImageBase64: p.croppedImageBase64,
+                        
+                        // 2. Ảnh đã xóa chữ (Dành cho Kaggle sinh video để không bị méo chữ)
+                        // Nếu không có ảnh inpaint thì gửi null hoặc gửi ảnh gốc
+                        inpaintedImageB64: cleanPanel ? cleanPanel.inpaintedImageB64 : null,
+                        
+                        // 3. Ảnh mặc định (Fallback) - Ưu tiên ảnh sạch
                         imageB64: cleanPanel ? cleanPanel.inpaintedImageB64 : p.croppedImageBase64,
-                        duration: duration // <--- GỬI KÈM DURATION
+                        
+                        // 4. Thời lượng audio
+                        duration: duration
                     };
                 });
 
@@ -127,6 +139,7 @@ const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData,
                 };
             });
 
+        // Gọi API Backend
         const res = await fetch(`${API_BASE_URL}/api/comic/video/generate-ai-video`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -136,6 +149,7 @@ const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData,
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Lỗi sinh video');
 
+        // Cập nhật kết quả vào state
         data.data.forEach(fileResult => {
             updateAnalysisResult(fileResult.fileName, 'aiVideoData', fileResult);
         });
@@ -143,6 +157,7 @@ const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData,
         alert("Đã sinh video AI xong! Giờ bạn có thể ghép Scene.");
 
     } catch (err) {
+        console.error(err);
         setError(err.message);
     } finally {
         setLoadingAI(false);

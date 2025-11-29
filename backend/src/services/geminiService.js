@@ -1,14 +1,11 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-// Đảm bảo bạn đã đặt biến môi trường GEMINI_API_KEY trong file .env
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 
-// --- SỬA TÊN MODEL TẠI ĐÂY ---
-// Chuyển sang Gemini 2.0 Flash Experimental
+// Dùng Gemini 2.0 Flash (Bản mới nhất, đọc ảnh + chữ cực nhanh)
 const model = genAI.getGenerativeModel({ 
-    model: "gemini-2.0-flash", 
+    model: "gemini-2.0-flash-exp", 
     generationConfig: { responseMimeType: "application/json" },
-    // Tắt bộ lọc an toàn để tránh chặn nhầm ảnh truyện tranh hành động
     safetySettings: [
         { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
         { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
@@ -19,25 +16,34 @@ const model = genAI.getGenerativeModel({
 
 exports.analyzePanelMotion = async (imageBase64) => {
   try {
-    // Prompt chi tiết để Gemini 2.0 hiểu ngữ cảnh
+    // Prompt nâng cấp: Kết hợp cả Hình ảnh + Nội dung Text
     const prompt = `
       Analyze this comic panel for video generation.
-      Determine the motion intensity based on visual cues (speed lines, explosions, character expressions).
       
+      Combine both VISUAL CUES (speed lines, poses) and TEXT CONTEXT (Speech bubbles, Sound Effects/SFX) to determine the motion intensity.
+
+      RULES FOR ANALYSIS:
+      1. **Read the Text/SFX**: 
+         - If text contains loud Sound Effects (e.g., "BOOM", "BANG", "CRASH", "SWOOSH") or Shouting ("!!!") -> Lean towards HIGH MOTION.
+         - If text is normal dialogue or monologues -> Lean towards LOW MOTION (Static/Talking).
+      2. **Observe Visuals**:
+         - Action poses, fighting, explosions -> HIGH MOTION.
+         - Standing still, close-up faces -> LOW MOTION.
+
+      DECISION LOGIC:
+      - High Motion (Score 150-200): Fights, Explosions, Running, Screaming, Loud SFX.
+      - Medium Motion (Score 80-120): Walking, Windy hair, Emotional shock, Zoom in.
+      - Low Motion (Score 30-60): Talking, Thinking, Scenery, Standing.
+
       Output strictly in this JSON format:
       {
-        "description": "Brief description of the scene",
-        "category": "ACTION" (for fights, explosions, running) or "TALK" (for dialogue, standing still) or "SCENERY",
-        "motion_score": Integer between 1 and 255. 
-                        (Rules: 
-                         - Talk/Static: 30-60 
-                         - Walking/Wind: 80-120 
-                         - Fight/Run/Explosion: 150-200),
-        "recommended_fps": Integer between 6 and 10. (6 for static, 8-10 for action)
+        "description": "Brief description including what text implies (e.g., 'Character shouting loudly with speed lines')",
+        "category": "ACTION" or "TALK" or "SCENERY",
+        "motion_score": Integer between 1 and 255,
+        "recommended_fps": Integer between 6 and 10
       }
     `;
     
-    // Gửi ảnh và prompt
     const result = await model.generateContent([
         prompt, 
         { inlineData: { data: imageBase64, mimeType: "image/jpeg" } }
@@ -47,8 +53,7 @@ exports.analyzePanelMotion = async (imageBase64) => {
     return JSON.parse(responseText);
 
   } catch (error) {
-    console.error("Gemini 2.0 Error:", error.message);
-    // Trả về giá trị mặc định an toàn nếu AI lỗi
+    console.error("Gemini Vision Error:", error.message);
     return { 
         motion_score: 127, 
         recommended_fps: 7, 

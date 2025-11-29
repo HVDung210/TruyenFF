@@ -442,9 +442,9 @@ exports.removeBubbles = async (req, res) => {
 };
 
 
-// --- CẤU HÌNH KẾT NỐI COLAB ---
-// URL này thay đổi mỗi lần bạn chạy lại Colab, hãy cập nhật nó
-const COLAB_API_URL = "https://b3822f755fb3.ngrok-free.app/";
+// --- CẤU HÌNH KẾT NỐI KAGGLE ---
+// URL này thay đổi mỗi lần bạn chạy lại Kaggle, hãy cập nhật nó
+const KAGGLE_API_URL = "https://c38a50e274fc.ngrok-free.app"; // <--- URL NGROK TỪ KAGGLE
 
 const httpsAgent = new https.Agent({ keepAlive: true });
 
@@ -452,7 +452,7 @@ const httpsAgent = new https.Agent({ keepAlive: true });
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * BƯỚC 6.2: SINH VIDEO AI (CÓ TÍCH HỢP GEMINI 1.5 FLASH)
+ * BƯỚC 6.2: SINH VIDEO AI (LOGIC: ẢNH CROP -> GEMINI | ẢNH INPAINT -> KAGGLE)
  */
 exports.generateVideoAI = async (req, res) => {
   try {
@@ -469,47 +469,84 @@ exports.generateVideoAI = async (req, res) => {
         console.log(`\n📂 Đang xử lý file: ${file.fileName}`);
         const processedPanels = [];
 
-        // Xử lý tuần tự từng panel (Để Gemini và Colab không bị quá tải)
+        // Xử lý tuần tự từng panel
         for (const panel of file.panels) {
             console.log(`   👉 Panel ${panel.panelId}: Đang phân tích...`);
             
-            // --- 1. PHÂN TÍCH ẢNH BẰNG GEMINI 1.5 FLASH ---
-            let motionParams = { motion_bucket_id: 127, fps: 7 }; // Mặc định
-            try {
-                // Lấy ảnh sạch (nếu có) hoặc ảnh crop
-                const imageSource = panel.imageB64; 
-                
-                // Gọi Gemini
-                console.log(`      🤖 Đang hỏi Gemini 1.5 Flash...`);
-                const analysis = await geminiService.analyzePanelMotion(imageSource);
-                
-                motionParams.motion_bucket_id = analysis.motion_score;
-                motionParams.fps = analysis.recommended_fps;
-                
-                console.log(`      💡 Gemini bảo: "${analysis.category}" -> Motion: ${analysis.motion_score}, FPS: ${analysis.recommended_fps}`);
+            // --- 1. CHUẨN BỊ ẢNH ---
+            // Ảnh nét để Gemini phân tích (ưu tiên ảnh gốc cắt ra)
+            // Nếu frontend chưa gửi crop thì dùng tạm imageB64
+            const imageForAnalysis = panel.croppedImageBase64 || panel.imageB64;
+            
+            // Ảnh sạch để làm Video (ưu tiên ảnh đã xóa bong bóng)
+            // Nếu không có ảnh inpaint thì dùng ảnh gốc (chấp nhận có chữ)
+            const imageForVideo = panel.inpaintedImageB64 || panel.croppedImageBase64 || panel.imageB64; 
 
-                // QUAN TRỌNG: Nghỉ 4 giây để tránh lỗi 429 (Too Many Requests) của Gemini Free
+            // --- 2. PHÂN TÍCH MOTION (GEMINI) ---
+            let motionParams = { motion_bucket_id: 127, fps: 7 }; // Giá trị mặc định
+            
+            try {
+                if (imageForAnalysis) {
+                    console.log(`      🤖 Đang hỏi Gemini (Dùng ảnh gốc để đọc tình huống)...`);
+                    const analysis = await geminiService.analyzePanelMotion(imageForAnalysis);
+                    
+                    console.log(`      📝 [GEMINI JSON]:`, JSON.stringify(analysis));
+                    
+                    if (analysis && analysis.motion_score) {
+                        motionParams.motion_bucket_id = analysis.motion_score;
+                        motionParams.fps = analysis.recommended_fps || 7;
+                        console.log(`      💡 Gemini bảo: "${analysis.category}" -> Motion: ${motionParams.motion_bucket_id}`);
+                    }
+                } else {
+                    console.warn("      ⚠️ Không tìm thấy ảnh để phân tích, dùng tham số mặc định.");
+                }
+                
+                // Nghỉ 4 giây để tránh lỗi Rate Limit của Gemini Free
                 await sleep(4000); 
 
             } catch (geminiErr) {
-                console.error(`      ⚠️ Lỗi Gemini (Dùng mặc định):`, geminiErr.message);
+                console.error(`      ⚠️ Lỗi Gemini (Chuyển sang logic Audio duration):`, geminiErr.message);
+                
+                // Fallback: Nếu Gemini lỗi, dùng độ dài Audio để đoán
+                const duration = panel.duration || 0;
+                if (duration >= 2.0) {
+                    motionParams.motion_bucket_id = 50;  // Cảnh tĩnh/nói chuyện
+                    motionParams.fps = 6;
+                } else {
+                    motionParams.motion_bucket_id = 140; // Cảnh hành động nhanh
+                    motionParams.fps = 8;
+                }
             }
 
-            // --- 2. GỬI SANG COLAB (SVD) ---
-            console.log(`      🚀 Gửi sang Colab để sinh video...`);
+            // --- 3. GỬI SANG KAGGLE (SVD) ---
+            console.log(`      🚀 Gửi sang Kaggle để sinh video (Dùng ảnh Inpaint)...`);
+            
+            if (!imageForVideo) {
+                 processedPanels.push({ 
+                    panelId: panel.panelId, 
+                    success: false, 
+                    error: "Không có dữ liệu ảnh để sinh video" 
+                });
+                continue;
+            }
+
             try {
-                const response = await axios.post(`${COLAB_API_URL}/generate`, {
+                // Biến KAGGLE_API_URL cần được khai báo ở đầu file (URL Ngrok)
+                const response = await axios.post(`${KAGGLE_API_URL}/generate`, { 
                     filesData: [{
                         fileName: file.fileName,
                         panels: [{
                             ...panel,
-                            // Truyền tham số từ Gemini sang Colab
+                            
+                            // [QUAN TRỌNG] Gán ảnh Inpaint vào key 'imageB64' cho Python
+                            imageB64: imageForVideo, 
+                            
                             motion_bucket_id: motionParams.motion_bucket_id,
                             fps: motionParams.fps
                         }]
                     }]
                 }, {
-                    timeout: 600000, // 10 phút timeout
+                    timeout: 600000, // 10 phút
                     httpsAgent: httpsAgent,
                     maxBodyLength: Infinity,
                     maxContentLength: Infinity
@@ -517,20 +554,23 @@ exports.generateVideoAI = async (req, res) => {
 
                 if (response.data.success) {
                     const resultPanel = response.data.data[0].panels[0];
-                    // Gán thêm thông tin mode để debug
                     resultPanel.aiMode = `Motion: ${motionParams.motion_bucket_id} (Gemini)`;
                     processedPanels.push(resultPanel);
                     console.log(`      ✅ Panel ${panel.panelId} xong!`);
                 } else {
-                    throw new Error('Colab trả về lỗi');
+                    throw new Error('Kaggle trả về lỗi');
                 }
 
-            } catch (colabErr) {
-                console.error(`      ❌ Lỗi Colab:`, colabErr.message);
+            } catch (kaggleErr) {
+                console.error(`      ❌ Lỗi Kaggle:`, kaggleErr.message);
+                if (kaggleErr.response) {
+                    console.error('      Kaggle Response:', kaggleErr.response.data);
+                }
+                
                 processedPanels.push({ 
                     panelId: panel.panelId, 
                     success: false, 
-                    error: colabErr.message 
+                    error: kaggleErr.message 
                 });
             }
         }
@@ -544,6 +584,104 @@ exports.generateVideoAI = async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 };
+
+/**
+ * BƯỚC 6.2: SINH VIDEO AI (DỰA TRÊN THỜI LƯỢNG AUDIO)
+ * Logic: 
+ * - Duration > 2s -> Cảnh nói chuyện -> Motion Thấp, FPS Thấp
+ * - Duration <= 2s -> Cảnh hành động -> Motion Cao, FPS Cao
+ */
+// exports.generateVideoAI = async (req, res) => {
+//   try {
+//     const { filesData } = req.body;
+//     if (!filesData || !Array.isArray(filesData)) {
+//       return res.status(400).json({ error: 'Thiếu filesData' });
+//     }
+
+//     console.log(`[ComicController] Bắt đầu quy trình AI (Audio-Based) cho ${filesData.length} file...`);
+//     const finalResults = [];
+
+//     // Xử lý tuần tự từng file
+//     for (const file of filesData) {
+//         console.log(`\n📂 Đang xử lý file: ${file.fileName}`);
+//         const processedPanels = [];
+
+//         // Xử lý tuần tự từng panel
+//         for (const panel of file.panels) {
+            
+//             // --- LOGIC PHÂN TÍCH MOTION DỰA VÀO DURATION ---
+//             // Lấy duration (Frontend gửi lên từ VideoGeneratorTester.jsx)
+//             const duration = panel.duration || 0;
+            
+//             let motionParams = { 
+//                 motion_bucket_id: 127, 
+//                 fps: 7 
+//             };
+            
+//             let modeDescription = "";
+
+//             if (duration > 2.0) {
+//                 // > 2s: Giả định là CẢNH NÓI CHUYỆN / TĨNH
+//                 motionParams.motion_bucket_id = 50;  // Rung rất nhẹ để tránh méo mặt
+//                 motionParams.fps = 6;                // FPS thấp cho cảm giác tĩnh hơn
+//                 modeDescription = "TALK (Low Motion)";
+//             } else {
+//                 // <= 2s: Giả định là CẢNH HÀNH ĐỘNG / TIẾNG ĐỘNG
+//                 motionParams.motion_bucket_id = 140; // Rung mạnh
+//                 motionParams.fps = 8;                // FPS cao cho mượt
+//                 modeDescription = "ACTION (High Motion)";
+//             }
+
+//             console.log(`   👉 Panel ${panel.panelId} (${duration}s) -> Chế độ: ${modeDescription}`);
+
+//             // --- GỬI SANG COLAB ---
+//             try {
+//                 const response = await axios.post(`${COLAB_API_URL}/generate`, {
+//                     filesData: [{
+//                         fileName: file.fileName,
+//                         panels: [{
+//                             ...panel,
+//                             // Truyền tham số motion đã tính toán sang Colab
+//                             motion_bucket_id: motionParams.motion_bucket_id,
+//                             fps: motionParams.fps
+//                         }]
+//                     }]
+//                 }, {
+//                     timeout: 600000, // 10 phút timeout
+//                     httpsAgent: httpsAgent,
+//                     maxBodyLength: Infinity,
+//                     maxContentLength: Infinity
+//                 });
+
+//                 if (response.data.success) {
+//                     const resultPanel = response.data.data[0].panels[0];
+//                     // Gán thêm thông tin mode để debug
+//                     resultPanel.aiMode = modeDescription;
+//                     processedPanels.push(resultPanel);
+//                     console.log(`      ✅ Panel ${panel.panelId} xong!`);
+//                 } else {
+//                     throw new Error('Colab trả về lỗi');
+//                 }
+
+//             } catch (colabErr) {
+//                 console.error(`      ❌ Lỗi Colab:`, colabErr.message);
+//                 processedPanels.push({ 
+//                     panelId: panel.panelId, 
+//                     success: false, 
+//                     error: colabErr.message 
+//                 });
+//             }
+//         }
+//         finalResults.push({ fileName: file.fileName, panels: processedPanels });
+//     }
+
+//     return res.json({ success: true, data: finalResults });
+
+//   } catch (err) {
+//     console.error('[ComicController] Fatal Error:', err.message);
+//     return res.status(500).json({ error: err.message });
+//   }
+// };
 
 /**
  * BƯỚC 6.3: GHÉP SCENE (XỬ LÝ BOOMERANG / ZOOM)
