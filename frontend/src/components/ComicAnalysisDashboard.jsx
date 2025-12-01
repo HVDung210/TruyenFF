@@ -16,6 +16,8 @@ const ComicAnalysisDashboard = () => {
   const [analysisResults, setAnalysisResults] = useState([]);
 
   const [videoData, setVideoData] = useState([]);
+  const [sceneData, setSceneData] = useState([]);     
+  const [finalVideos, setFinalVideos] = useState([]);
 
   const tabs = [
     { id: 'panels', label: '1. Panel Detection', component: PanelDetectionTester },
@@ -121,6 +123,10 @@ const ComicAnalysisDashboard = () => {
           // 5. TRUYỀN PROPS MỚI XUỐNG TAB CON
           videoData={videoData}
           setVideoData={setVideoData}
+          sceneData={sceneData}          
+          setSceneData={setSceneData}    
+          finalVideos={finalVideos}      
+          setFinalVideos={setFinalVideos}
         />
       </div>
     </div>

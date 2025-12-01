@@ -2,13 +2,23 @@ import React, { useState } from 'react';
 
 const API_BASE_URL = 'http://localhost:5000'; 
 
-const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData, updateAnalysisResult }) => {
+const VideoGeneratorTester = ({ 
+  files, 
+  analysisResults, 
+  videoData, 
+  setVideoData, 
+  updateAnalysisResult, 
+  sceneData, 
+  setSceneData,
+  finalVideos, 
+  setFinalVideos }) => {
   const [loadingAudio, setLoadingAudio] = useState(false);
   const [loadingAI, setLoadingAI] = useState(false);
   const [loadingScenes, setLoadingScenes] = useState(false);
   const [error, setError] = useState('');
-  const [sceneData, setSceneData] = useState([]);
 
+  const [loadingFinal, setLoadingFinal] = useState(false);
+  
   // 1. LOGIC CHUẨN HÓA TEXT (Giữ nguyên)
   const getProcessedTextData = () => {
     return analysisResults
@@ -59,6 +69,7 @@ const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData,
     setLoadingAudio(true);
     setError('');
     setSceneData([]); 
+    setFinalVideos([]);
 
     try {
       const payload = {
@@ -74,7 +85,7 @@ const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData,
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Lỗi từ server');
       console.log('[FE] Đã nhận dữ liệu Audio từ Backend:', data.data);
-      setVideoData(data.data);
+      setVideoData(data.data);  
       
     } catch (err) {
       setError(err.message);
@@ -231,6 +242,36 @@ const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData,
     }
   };
 
+  // --- HÀM BƯỚC 6.4 ---
+  const handleGenerateFinal = async () => {
+    if (sceneData.length === 0) return;
+    setLoadingFinal(true);
+    
+    try {
+        const payload = {
+            sceneData: sceneData, // Kết quả bước 6.3 (Video câm)
+            videoData: videoData  // Kết quả bước 6.1 (Audio)
+        };
+
+        const res = await fetch(`${API_BASE_URL}/api/comic/video/generate-final`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        setFinalVideos(data.data);
+        alert("Video đã hoàn thành.");
+
+    } catch (err) {
+        setError(err.message);
+    } finally {
+        setLoadingFinal(false);
+    }
+  };
+
   return (
     <div className="pt-6 bg-slate-900 min-h-screen text-gray-200">
       <h2 className="text-xl font-bold mb-4 text-blue-400 pt-6">6. Tạo Video</h2>
@@ -374,6 +415,48 @@ const VideoGeneratorTester = ({ files, analysisResults, videoData, setVideoData,
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* --- PHẦN UI CHO BƯỚC 6.4 (CUỐI CÙNG) --- */}
+      {sceneData.length > 0 && (
+        <div className="mt-8 border-t-2 border-orange-600 pt-8">
+            <h3 className="text-2xl font-bold text-orange-500 mb-4 text-center">BƯỚC 6.4: XUẤT BẢN VIDEO HOÀN CHỈNH</h3>
+            
+            <div className="flex justify-center mb-6">
+                <button 
+                    onClick={handleGenerateFinal}
+                    disabled={loadingFinal}
+                    className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-8 rounded-full text-lg shadow-lg disabled:bg-gray-600 transition-all transform hover:scale-105"
+                >
+                    {loadingFinal ? 'Đang dựng...' : 'VIDEO FULL'}
+                </button>
+            </div>
+
+            {/* HIỂN THỊ VIDEO FINAL */}
+            {finalVideos.length > 0 && (
+                <div className="grid grid-cols-1 gap-8">
+                    {finalVideos.map((video, idx) => (
+                        <div key={idx} className="bg-slate-800 border-2 border-orange-500 rounded-xl p-6 shadow-2xl">
+                            <h4 className="text-xl font-bold text-white mb-4 text-center">{video.fileName} - FINAL CUT</h4>
+                            
+                            {video.error ? (
+                                <div className="text-red-400 text-center">Lỗi: {video.error}</div>
+                            ) : (
+                                <div className="aspect-video w-full bg-black rounded-lg overflow-hidden">
+                                    <video controls className="w-full h-full" src={video.finalUrl} />
+                                </div>
+                            )}
+                            
+                            <div className="mt-4 text-center">
+                                <a href={video.finalUrl} download className="text-blue-400 hover:text-blue-300 underline">
+                                    Tải video về máy
+                                </a>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
       )}
     </div>

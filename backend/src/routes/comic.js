@@ -32,9 +32,9 @@ router.post('/comic/video/remove-bubbles', express.json({limit: '50mb'}), contro
 // Lưu ý: express.json limit cao để nhận chuỗi base64 lớn
 
 router.post('/comic/video/generate-audio', controller.generateAudio);
-router.post('/comic/video/generate-scenes', controller.generateScenes);
-
 router.post('/comic/video/generate-ai-video', express.json({limit: '100mb'}), controller.generateVideoAI);
+router.post('/comic/video/generate-scenes', controller.generateScenes);
+router.post('/comic/video/generate-final', express.json({limit: '100mb'}), controller.generateFinalVideo);
 
 module.exports = router;
 

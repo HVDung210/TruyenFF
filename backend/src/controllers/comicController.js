@@ -758,3 +758,71 @@ exports.generateScenes = async (req, res) => {
       res.status(500).json({ success: false, error: error.message });
   }
 };
+
+/**
+ * BƯỚC 6.4: TẠO VIDEO HOÀN CHỈNH (MERGE AUDIO + CONCAT)
+ */
+exports.generateFinalVideo = async (req, res) => {
+  try {
+      const { sceneData, videoData } = req.body; // sceneData chứa video url, videoData chứa audio url
+
+      if (!sceneData || !videoData) {
+          return res.status(400).json({ error: 'Thiếu dữ liệu scene hoặc audio' });
+      }
+
+      console.log('[ComicController] Bắt đầu tạo Final Video...');
+      const finalResults = [];
+
+      // Xử lý từng file truyện (ví dụ chap 1, chap 2...)
+      for (const fileScene of sceneData) {
+          const fileName = fileScene.fileName;
+          const fileAudio = videoData.find(f => f.fileName === fileName);
+          
+          if (!fileAudio) continue;
+
+          // Gom cặp Video-Audio theo đúng thứ tự panel
+          const orderedScenes = [];
+          const orderedAudios = [];
+
+          // Duyệt theo thứ tự panel trong sceneData
+          for (const panelScene of fileScene.panels) {
+              const panelAudio = fileAudio.panels.find(p => p.panelId === panelScene.panelId);
+              if (panelAudio && panelAudio.audioUrl) {
+                  orderedScenes.push(panelScene);
+                  orderedAudios.push(panelAudio);
+              }
+          }
+
+          if (orderedScenes.length === 0) continue;
+
+          const outputFileName = `FINAL_${path.parse(fileName).name}_${Date.now()}.mp4`;
+
+          try {
+              const result = await videoService.createFinalMovie(
+                  orderedScenes,
+                  orderedAudios,
+                  outputFileName
+              );
+
+              finalResults.push({
+                  fileName: fileName,
+                  finalUrl: result.finalVideoUrl
+              });
+
+          } catch (error) {
+              console.error(`Lỗi render file ${fileName}:`, error);
+              finalResults.push({ fileName: fileName, error: error.message });
+          }
+      }
+
+      res.json({
+          success: true,
+          data: finalResults,
+          message: 'Đã xuất bản video hoàn chỉnh!'
+      });
+
+  } catch (err) {
+      console.error('[ComicController] Fatal:', err);
+      res.status(500).json({ error: err.message });
+  }
+};
