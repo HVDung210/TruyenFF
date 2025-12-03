@@ -51,6 +51,8 @@ const ComicAnalysisDashboard = () => {
     setAnalysisResults(initialResults);
     // 4. RESET VIDEO DATA KHI THAY ĐỔI FILE
     setVideoData([]);
+    setSceneData([]);
+    setFinalVideos([]);
   };
 
   /**
@@ -75,8 +77,6 @@ const ComicAnalysisDashboard = () => {
       <div className="bg-slate-800 border-b border-slate-700">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <h1 className="text-2xl font-bold text-blue-400 mb-4">Comic Analysis Dashboard</h1>
-          
-          {/* Tab Navigation (Tự động cập nhật khi 'tabs' thay đổi) */}
           <div className="flex space-x-1 bg-slate-700 rounded-lg p-1 overflow-x-auto">
             {tabs.map((tab) => (
               <button
@@ -95,10 +95,10 @@ const ComicAnalysisDashboard = () => {
         </div>
       </div>
 
-      {/* BỘ UPLOAD FILE CHUNG */}
+      {/* Upload */}
       <div className="max-w-7xl mx-auto px-6 pt-6">
         <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
-          <h3 className="text-xl font-semibold mb-3 text-blue-300">Upload ảnh </h3>
+          <h3 className="text-xl font-semibold mb-3 text-blue-300">Upload ảnh</h3>
           <input 
             type="file" 
             accept="image/*" 
@@ -120,12 +120,11 @@ const ComicAnalysisDashboard = () => {
           files={files} 
           analysisResults={analysisResults} 
           updateAnalysisResult={updateAnalysisResult}
-          // 5. TRUYỀN PROPS MỚI XUỐNG TAB CON
           videoData={videoData}
           setVideoData={setVideoData}
-          sceneData={sceneData}          
-          setSceneData={setSceneData}    
-          finalVideos={finalVideos}      
+          sceneData={sceneData}
+          setSceneData={setSceneData}
+          finalVideos={finalVideos}
           setFinalVideos={setFinalVideos}
         />
       </div>

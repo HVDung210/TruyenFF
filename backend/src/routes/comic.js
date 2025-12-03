@@ -34,6 +34,7 @@ router.post('/comic/video/generate-audio', controller.generateAudio);
 router.post('/comic/video/generate-ai-video', express.json({limit: '100mb'}), controller.generateVideoAI);
 router.post('/comic/video/generate-scenes', controller.generateScenes);
 router.post('/comic/video/generate-final', express.json({limit: '100mb'}), controller.generateFinalVideo);
+router.post('/comic/video/generate-mega', controller.generateMegaVideo);   
 
 module.exports = router;
 

@@ -18,6 +18,8 @@ const VideoGeneratorTester = ({
   const [error, setError] = useState('');
 
   const [loadingFinal, setLoadingFinal] = useState(false);
+  const [loadingMega, setLoadingMega] = useState(false);
+  const [megaVideo, setMegaVideo] = useState(null);
   
   // 1. LOGIC CHUẨN HÓA TEXT (Giữ nguyên)
   const getProcessedTextData = () => {
@@ -242,15 +244,15 @@ const VideoGeneratorTester = ({
     }
   };
 
-  // --- HÀM BƯỚC 6.4 ---
+  // --- HÀM BƯỚC 7.4 ---
   const handleGenerateFinal = async () => {
     if (sceneData.length === 0) return;
     setLoadingFinal(true);
     
     try {
         const payload = {
-            sceneData: sceneData, // Kết quả bước 6.3 (Video câm)
-            videoData: videoData  // Kết quả bước 6.1 (Audio)
+            sceneData: sceneData, // Kết quả bước 7.3 (Video câm)
+            videoData: videoData  // Kết quả bước 7.1 (Audio)
         };
 
         const res = await fetch(`${API_BASE_URL}/api/comic/video/generate-final`, {
@@ -272,13 +274,39 @@ const VideoGeneratorTester = ({
     }
   };
 
+  // --- HÀM 7.5: GHÉP TOÀN BỘ ---
+  const handleGenerateMega = async () => {
+    if (!finalVideos || finalVideos.length === 0) return;
+    setLoadingMega(true);
+    setError('');
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/comic/video/generate-mega`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ finalVideos: finalVideos }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        setMegaVideo(data.data);
+        alert("Đã tạo video Full Chapter thành công!");
+
+    } catch (err) {
+        setError(err.message);
+    } finally {
+        setLoadingMega(false);
+    }
+  };
+
   return (
     <div className="pt-6 bg-slate-900 min-h-screen text-gray-200">
-      <h2 className="text-xl font-bold mb-4 text-blue-400 pt-6">6. Tạo Video</h2>
+      <h2 className="text-xl font-bold mb-4 text-blue-400 pt-6">7. Tạo Video</h2>
       
-      {/* --- Bước 6.1: Tạo Audio --- */}
+      {/* --- Bước 7.1: Tạo Audio --- */}
       <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
-        <h3 className="text-lg font-semibold text-blue-300 mb-3">Bước 6.1: Tạo Âm thanh (TTS)</h3>
+        <h3 className="text-lg font-semibold text-blue-300 mb-3">Bước 7.1: Tạo Âm thanh (TTS)</h3>
         
         {!isReadyForAudio && files.length > 0 && (
           <p className="text-yellow-400 mb-4">Vui lòng chạy "Bước 1" trước.</p>
@@ -302,7 +330,7 @@ const VideoGeneratorTester = ({
       {/* --- Hiển thị kết quả Audio --- */}
       {videoData.length > 0 && (
         <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
-          <h3 className="text-lg font-semibold text-blue-300 mb-4">Kết quả Audio (Bước 6.1)</h3>
+          <h3 className="text-lg font-semibold text-blue-300 mb-4">Kết quả Audio (Bước 7.1)</h3>
           <div className="space-y-4">
             {videoData.map((file) => (
               <div key={file.fileName} className="bg-slate-700 p-3 rounded-lg">
@@ -333,9 +361,9 @@ const VideoGeneratorTester = ({
         </div>
       )}
 
-      {/* BƯỚC 6.2: AI MOTION (SVD) - MỚI */}
+      {/* BƯỚC 7.2: AI MOTION (SVD) - MỚI */}
       <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
-        <h3 className="text-lg font-semibold text-blue-300 mb-3">Bước 6.2: Tạo Chuyển Động (SVD AI)</h3>
+        <h3 className="text-lg font-semibold text-blue-300 mb-3">Bước 7.2: Tạo Chuyển Động (SVD AI)</h3>
         <p className="text-gray-400 text-sm mb-4">
             Sinh video AI.
         </p>
@@ -371,7 +399,7 @@ const VideoGeneratorTester = ({
 
       {/* THÊM NÚT NÀY VÀO DƯỚI NÚT "SINH VIDEO AI" */}
       <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
-          <h3 className="text-lg font-semibold text-blue-300 mb-3">Bước 6.3: Ghép Scene (Final)</h3>
+          <h3 className="text-lg font-semibold text-blue-300 mb-3">Bước 7.3: Ghép Scene (Final)</h3>
           <p className="text-gray-400 text-sm mb-4">
             Ghép scene bằng hiệu ứng Boomerang.
           </p>
@@ -398,7 +426,6 @@ const VideoGeneratorTester = ({
                     <div key={panel.panelId} className="bg-slate-900 p-2 rounded">
                       <p className="text-sm font-medium mb-1">Panel {panel.panelId}</p>
                       
-                      {/* VIDEO FINAL (7s) */}
                       <video
                         controls
                         src={panel.videoUrl} 
@@ -418,47 +445,65 @@ const VideoGeneratorTester = ({
         </div>
       )}
 
-      {/* --- PHẦN UI CHO BƯỚC 6.4 (CUỐI CÙNG) --- */}
+      {/* --- BƯỚC 7.4: XUẤT BẢN TỪNG TRANG (Đổi tên một chút cho rõ) --- */}
       {sceneData.length > 0 && (
-        <div className="mt-8 border-t-2 border-orange-600 pt-8">
-            <h3 className="text-2xl font-bold text-orange-500 mb-4 text-center">BƯỚC 6.4: XUẤT BẢN VIDEO HOÀN CHỈNH</h3>
+        <div className="mt-8 border-t border-slate-700 pt-8 pb-6">
+            <h3 className="text-xl font-bold text-blue-400 mb-3">Bước 7.4: Xuất bản Video Từng Trang</h3>
+            <p className="text-gray-400 text-sm mb-4">tạo ra video hoàn chỉnh cho mỗi trang truyện.</p>
             
-            <div className="flex justify-center mb-6">
-                <button 
-                    onClick={handleGenerateFinal}
-                    disabled={loadingFinal}
-                    className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-8 rounded-full text-lg shadow-lg disabled:bg-gray-600 transition-all transform hover:scale-105"
-                >
-                    {loadingFinal ? 'Đang dựng...' : 'VIDEO FULL'}
-                </button>
-            </div>
+            <button onClick={handleGenerateFinal} disabled={loadingFinal}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg shadow-lg disabled:bg-gray-600">
+                {loadingFinal ? 'Đang xử lý...' : 'Tạo Video Từng Trang'}
+            </button>
 
-            {/* HIỂN THỊ VIDEO FINAL */}
+            {/* Hiển thị list video 7.4 */}
             {finalVideos.length > 0 && (
-                <div className="grid grid-cols-1 gap-8">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
                     {finalVideos.map((video, idx) => (
-                        <div key={idx} className="bg-slate-800 border-2 border-orange-500 rounded-xl p-6 shadow-2xl">
-                            <h4 className="text-xl font-bold text-white mb-4 text-center">{video.fileName} - FINAL CUT</h4>
-                            
-                            {video.error ? (
-                                <div className="text-red-400 text-center">Lỗi: {video.error}</div>
-                            ) : (
-                                <div className="aspect-video w-full bg-black rounded-lg overflow-hidden">
-                                    <video controls className="w-full h-full" src={video.finalUrl} />
-                                </div>
-                            )}
-                            
-                            <div className="mt-4 text-center">
-                                <a href={video.finalUrl} download className="text-blue-400 hover:text-blue-300 underline">
-                                    Tải video về máy
-                                </a>
-                            </div>
+                        <div key={idx} className="bg-slate-800 p-2 rounded border border-slate-600">
+                            <div className="text-xs text-center mb-1 truncate">{video.fileName}</div>
+                            <video controls className="w-full rounded" src={video.finalUrl} />
                         </div>
                     ))}
                 </div>
             )}
         </div>
       )}
+
+      {/* --- BƯỚC 7.5: GHÉP TOÀN BỘ CHAPTER (FINAL CỦA FINAL) --- */}
+      {finalVideos.length > 0 && (
+        <div className="mt-8 border-t-2 border-orange-600 pt-8 pb-12 text-center">
+            <h3 className="text-3xl font-extrabold text-orange-500 mb-4 animate-pulse">BƯỚC 7.5: FINAL CHAPTER</h3>
+            <p className="text-gray-300 mb-6">Nối tất cả các video.</p>
+            
+            <button onClick={handleGenerateMega} disabled={loadingMega}
+                className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-4 px-12 rounded-full text-xl shadow-2xl disabled:bg-gray-600 transition-transform transform hover:scale-105">
+                {loadingMega ? 'Đang ghép...' : 'XUẤT'}
+            </button>
+
+            {/* VIDEO KẾT QUẢ */}
+            {megaVideo && (
+                <div className="mt-8 max-w-4xl mx-auto bg-black rounded-xl overflow-hidden shadow-[0_0_50px_rgba(234,88,12,0.3)] border border-orange-500/50">
+                    <div className="bg-slate-900/80 p-2 text-orange-400 font-bold border-b border-slate-700">
+                        {megaVideo.fileName}
+                    </div>
+                    <video controls autoPlay className="w-full" src={megaVideo.finalUrl} />
+                    <div className="p-4 bg-slate-900 text-center">
+                        <a href={megaVideo.finalUrl} download className="inline-block bg-white text-orange-600 font-bold px-8 py-3 rounded-full hover:bg-gray-200 transition-colors">
+                            ⬇️ TẢI PHIM VỀ MÁY
+                        </a>
+                    </div>
+                </div>
+            )}
+        </div>
+      )}
+
+      {error && (
+        <div className="fixed bottom-4 right-4 bg-red-900/90 border border-red-500 text-white p-4 rounded-lg shadow-xl max-w-md">
+            <strong>Lỗi:</strong> {error}
+        </div>
+      )}
+
     </div>
   );
 };

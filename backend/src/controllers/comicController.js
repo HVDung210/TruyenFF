@@ -452,7 +452,7 @@ const httpsAgent = new https.Agent({ keepAlive: true });
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * BƯỚC 6.2: SINH VIDEO AI (LOGIC: ẢNH CROP -> GEMINI | ẢNH INPAINT -> KAGGLE)
+ * BƯỚC 7.2: SINH VIDEO AI (LOGIC: ẢNH CROP -> GEMINI | ẢNH INPAINT -> KAGGLE)
  */
 exports.generateVideoAI = async (req, res) => {
   try {
@@ -493,8 +493,8 @@ exports.generateVideoAI = async (req, res) => {
                     console.log(`      📝 [GEMINI JSON]:`, JSON.stringify(analysis));
                     
                     if (analysis && analysis.motion_score) {
-                        motionParams.motion_bucket_id = 127 || analysis.motion_score;
-                        motionParams.fps = 7 || analysis.recommended_fps;
+                        motionParams.motion_bucket_id = analysis.motion_score || 127;
+                        motionParams.fps = analysis.recommended_fps || 7;
                         console.log(`      💡 Gemini: "${analysis.category}", Motion: ${motionParams.motion_bucket_id}`);
                     }
                 } else {
@@ -586,7 +586,7 @@ exports.generateVideoAI = async (req, res) => {
 };
 
 /**
- * BƯỚC 6.2: SINH VIDEO AI (DỰA TRÊN THỜI LƯỢNG AUDIO)
+ * BƯỚC 7.2: SINH VIDEO AI (DỰA TRÊN THỜI LƯỢNG AUDIO)
  * Logic: 
  * - Duration > 2s -> Cảnh nói chuyện -> Motion Thấp, FPS Thấp
  * - Duration <= 2s -> Cảnh hành động -> Motion Cao, FPS Cao
@@ -684,7 +684,7 @@ exports.generateVideoAI = async (req, res) => {
 // };
 
 /**
- * BƯỚC 6.3: GHÉP SCENE (XỬ LÝ BOOMERANG / ZOOM)
+ * BƯỚC 7.3: GHÉP SCENE (XỬ LÝ BOOMERANG / ZOOM)
  */
 exports.generateScenes = async (req, res) => {
   try {
@@ -716,7 +716,7 @@ exports.generateScenes = async (req, res) => {
               let sourceB64 = panelCrop.croppedImageBase64;
               let isVideo = false;
 
-              // Nếu có video từ Bước 6.2 (SVD) thì dùng nó
+              // Nếu có video từ Bước 7.2 (SVD) thì dùng nó
               if (panelCrop.videoSourceBase64) {
                   sourceB64 = panelCrop.videoSourceBase64;
                   isVideo = true; 
@@ -760,7 +760,7 @@ exports.generateScenes = async (req, res) => {
 };
 
 /**
- * BƯỚC 6.4: TẠO VIDEO HOÀN CHỈNH (MERGE AUDIO + CONCAT)
+ * BƯỚC 7.4: TẠO VIDEO HOÀN CHỈNH (MERGE AUDIO + CONCAT)
  */
 exports.generateFinalVideo = async (req, res) => {
   try {
@@ -829,4 +829,47 @@ exports.generateFinalVideo = async (req, res) => {
       console.error('[ComicController] Fatal:', err);
       res.status(500).json({ error: err.message });
   }
+};
+
+/**
+  * BƯỚC 7.5: TẠO VIDEO TỔNG HỢP (FULL CHAPTER)
+  */
+  exports.generateMegaVideo = async (req, res) => {
+    try {
+        const { finalVideos } = req.body; // Danh sách URL từ bước 7.4
+
+        if (!finalVideos || !Array.isArray(finalVideos) || finalVideos.length === 0) {
+            return res.status(400).json({ error: 'Thiếu danh sách video đầu vào' });
+        }
+
+        console.log('[ComicController] Nhận yêu cầu ghép Mega Video...');
+
+        // Lấy danh sách URL
+        const urlList = finalVideos.map(v => v.finalUrl).filter(url => url);
+        
+        if (urlList.length === 0) return res.status(400).json({ error: 'Danh sách video rỗng' });
+
+        const outputFileName = `FULL_CHAPTER_${Date.now()}.mp4`;
+
+        try {
+            const result = await videoService.mergeAllVideos(urlList, outputFileName);
+
+            res.json({
+                success: true,
+                data: {
+                    finalUrl: result.megaVideoUrl,
+                    fileName: outputFileName
+                },
+                message: 'Đã ghép toàn bộ chapter thành công!'
+            });
+
+        } catch (error) {
+            console.error('Lỗi ghép Mega Video:', error);
+            res.status(500).json({ error: error.message });
+        }
+
+    } catch (err) {
+        console.error('[ComicController] Fatal:', err);
+        res.status(500).json({ error: err.message });
+    }
 };

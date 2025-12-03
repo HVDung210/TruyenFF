@@ -155,7 +155,7 @@ class VideoService {
     }
 
     /**
-     * BƯỚC 6.4: GHÉP AUDIO VÀ NỐI VIDEO
+     * BƯỚC 7.4: GHÉP AUDIO VÀ NỐI VIDEO
      */
     async createFinalMovie(sceneList, audioList, outputFileName) {
         const finalVideoPath = path.join(TEMP_DIR, outputFileName);
@@ -232,6 +232,46 @@ class VideoService {
 
         } catch (error) {
             console.error(`[VideoService] Final Render Error:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * BƯỚC 7.5: GHÉP TẤT CẢ VIDEO CON THÀNH 1 VIDEO LỚN (MEGA MERGE)
+     */
+    async mergeAllVideos(videoUrlList, outputFileName) {
+        const megaVideoPath = path.join(TEMP_DIR, outputFileName);
+        const megaVideoUrl = `http://localhost:5000/static/${outputFileName}?v=${Date.now()}`;
+        const concatListPath = path.join(TEMP_DIR, `mega_concat_list_${Date.now()}.txt`);
+
+        try {
+            console.log(`[VideoService] Bắt đầu ghép ${videoUrlList.length} video thành 1 file lớn...`);
+
+            // 1. Tạo file list
+            const fileContent = videoUrlList.map(url => {
+                // Chuyển URL thành đường dẫn nội bộ (Local Path)
+                // Giả định URL dạng: http://localhost:5000/static/abc.mp4
+                const fileName = path.basename(url.split('?')[0]);
+                const localPath = path.join(TEMP_DIR, fileName).replace(/\\/g, '/');
+                return `file '${localPath}'`;
+            }).join('\n');
+
+            fs.writeFileSync(concatListPath, fileContent);
+
+            // 2. Nối (Concatenation) - Không cần encode lại (-c copy) nên siêu nhanh
+            const command = `ffmpeg -f concat -safe 0 -i "${concatListPath}" -c copy -y "${megaVideoPath}"`;
+            
+            await exec(command);
+
+            // 3. Dọn dẹp
+            if(fs.existsSync(concatListPath)) fs.unlinkSync(concatListPath);
+
+            console.log(`[VideoService] Xong Mega Video: ${outputFileName}`);
+            return { megaVideoPath, megaVideoUrl };
+
+        } catch (error) {
+            console.error(`[VideoService] Mega Merge Error:`, error);
+            if(fs.existsSync(concatListPath)) fs.unlinkSync(concatListPath);
             throw error;
         }
     }
