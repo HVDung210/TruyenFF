@@ -25,9 +25,9 @@ const ComicAnalysisDashboard = () => {
     { id: 'crop', label: '3. Panel Cropper', component: PanelCropperTester },
     { id: 'text', label: '4. Text Detection', component: TextDetectionTester },
     // { id: 'api-test', label: 'API Tester', component: TextDetectionAPITester }
-    { id: 'inpainting', label: '4.5. Inpainting', component: InpaintingTester },
-    { id: 'text-editor', label: '5. Text Editor', component: TextEditorTester }, 
-    { id: 'video', label: '6. Video Generation', component: VideoGeneratorTester }
+    { id: 'inpainting', label: '5. Inpainting', component: InpaintingTester },
+    { id: 'text-editor', label: '6. Text Editor', component: TextEditorTester }, 
+    { id: 'video', label: '7. Video Generation', component: VideoGeneratorTester }
     
   ];
 

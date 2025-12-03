@@ -444,7 +444,7 @@ exports.removeBubbles = async (req, res) => {
 
 // --- CẤU HÌNH KẾT NỐI KAGGLE ---
 // URL này thay đổi mỗi lần bạn chạy lại Kaggle, hãy cập nhật nó
-const KAGGLE_API_URL = "https://e19bfa96977d.ngrok-free.app"; // <--- URL NGROK TỪ KAGGLE
+const KAGGLE_API_URL = "https://845c168a0958.ngrok-free.app"; // <--- URL NGROK TỪ KAGGLE
 
 const httpsAgent = new https.Agent({ keepAlive: true });
 
@@ -493,8 +493,8 @@ exports.generateVideoAI = async (req, res) => {
                     console.log(`      📝 [GEMINI JSON]:`, JSON.stringify(analysis));
                     
                     if (analysis && analysis.motion_score) {
-                        motionParams.motion_bucket_id = analysis.motion_score;
-                        motionParams.fps = analysis.recommended_fps || 7;
+                        motionParams.motion_bucket_id = 127 || analysis.motion_score;
+                        motionParams.fps = 7 || analysis.recommended_fps;
                         console.log(`      💡 Gemini: "${analysis.category}", Motion: ${motionParams.motion_bucket_id}`);
                     }
                 } else {
@@ -775,45 +775,49 @@ exports.generateFinalVideo = async (req, res) => {
 
       // Xử lý từng file truyện (ví dụ chap 1, chap 2...)
       for (const fileScene of sceneData) {
-          const fileName = fileScene.fileName;
-          const fileAudio = videoData.find(f => f.fileName === fileName);
-          
-          if (!fileAudio) continue;
+            const fileName = fileScene.fileName;
+            const fileAudio = videoData.find(f => f.fileName === fileName);
+            
+            // Dù không có fileAudio thì vẫn phải render video (câm)
+            // Nhưng code cũ: if (!fileAudio) continue; -> Có thể gây lỗi nếu mất audio data
+            // Sửa lại: Nếu không có fileAudio thì tạo mảng rỗng
+            const audioPanels = fileAudio ? fileAudio.panels : [];
 
-          // Gom cặp Video-Audio theo đúng thứ tự panel
-          const orderedScenes = [];
-          const orderedAudios = [];
+            const orderedScenes = [];
+            const orderedAudios = [];
 
-          // Duyệt theo thứ tự panel trong sceneData
-          for (const panelScene of fileScene.panels) {
-              const panelAudio = fileAudio.panels.find(p => p.panelId === panelScene.panelId);
-              if (panelAudio && panelAudio.audioUrl) {
-                  orderedScenes.push(panelScene);
-                  orderedAudios.push(panelAudio);
-              }
-          }
+            // Duyệt qua từng Video Panel
+            for (const panelScene of fileScene.panels) {
+                orderedScenes.push(panelScene);
 
-          if (orderedScenes.length === 0) continue;
+                // Tìm Audio tương ứng với Panel này
+                const audioFound = audioPanels.find(p => p.panelId === panelScene.panelId);
+                
+                // Nếu tìm thấy thì push vào, không thấy thì push null (để service xử lý tạo audio rỗng)
+                orderedAudios.push(audioFound || null);
+            }
 
-          const outputFileName = `FINAL_${path.parse(fileName).name}_${Date.now()}.mp4`;
+            if (orderedScenes.length === 0) continue;
 
-          try {
-              const result = await videoService.createFinalMovie(
-                  orderedScenes,
-                  orderedAudios,
-                  outputFileName
-              );
+            const outputFileName = `FINAL_${path.parse(fileName).name}_${Date.now()}.mp4`;
 
-              finalResults.push({
-                  fileName: fileName,
-                  finalUrl: result.finalVideoUrl
-              });
+            try {
+                const result = await videoService.createFinalMovie(
+                    orderedScenes,
+                    orderedAudios, // Danh sách này phải khớp độ dài với orderedScenes
+                    outputFileName
+                );
 
-          } catch (error) {
-              console.error(`Lỗi render file ${fileName}:`, error);
-              finalResults.push({ fileName: fileName, error: error.message });
-          }
-      }
+                finalResults.push({
+                    fileName: fileName,
+                    finalUrl: result.finalVideoUrl
+                });
+
+            } catch (error) {
+                console.error(`Lỗi render file ${fileName}:`, error);
+                finalResults.push({ fileName: fileName, error: error.message });
+            }
+        }
 
       res.json({
           success: true,

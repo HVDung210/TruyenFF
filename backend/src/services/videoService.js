@@ -11,6 +11,66 @@ const TEMP_DIR = path.join(__dirname, '..', 'tmp');
 class VideoService {
 
     /**
+     * [PHIÊN BẢN TẠM THỜI ĐỂ TEST]
+     * Luôn tạo video từ ảnh tĩnh (Ken Burns) để bỏ qua bước SVD lâu lắc.
+     */
+    // async createScene(sourceB64, duration, outputFileName, isVideo = false) {
+    //     const videoPath = path.join(TEMP_DIR, outputFileName);
+    //     const videoUrl = `http://localhost:5000/static/${outputFileName}?v=${Date.now()}`;
+        
+    //     // --- [THAY ĐỔI 1]: LUÔN COI LÀ ẢNH (.jpg) ---
+    //     // Dù frontend có gửi cờ isVideo hay không, ta vẫn lưu là ảnh để test nhanh
+    //     const tempInputPath = path.join(TEMP_DIR, `temp_input_${Date.now()}.jpg`);
+    //     const inputBuffer = Buffer.from(sourceB64, 'base64');
+    //     fs.writeFileSync(tempInputPath, inputBuffer);
+
+    //     const resolution_w = "1280";
+    //     const resolution_h = "720";
+    //     const fadeDuration = 0.5;
+    //     const safeDuration = Math.max(duration, 2.0); // Tối thiểu 2s
+
+    //     // --- [THAY ĐỔI 2]: CHỈ DÙNG LỆNH KEN BURNS (ZOOM/PAN) ---
+    //     // Không dùng lệnh Boomerang nữa vì ta không có video đầu vào
+        
+    //     const zoompanDurationFrames = Math.ceil(safeDuration * 25);
+    //     const fadeOutStartTime = safeDuration - fadeDuration;
+
+    //     // Lệnh FFmpeg tạo chuyển động từ ảnh tĩnh
+    //     const command = [
+    //         'ffmpeg',
+    //         '-loop 1',
+    //         `-i "${tempInputPath}"`,
+    //         '-vf',
+    //         // Hiệu ứng Zoom nhẹ (Zoom vào giữa) + Scale HD + Fade In/Out
+    //         `"zoompan=z='min(zoom+0.001,1.15)':d=${zoompanDurationFrames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)',` +
+    //         `scale=w=${resolution_w}:h=${resolution_h}:force_original_aspect_ratio=decrease:flags=lanczos,` +
+    //         `pad=w=${resolution_w}:h=${resolution_h}:x=(ow-iw)/2:y=(oh-ih)/2,` +
+    //         `fade=t=in:st=0:d=${fadeDuration},` +
+    //         `fade=t=out:st=${fadeOutStartTime}:d=${fadeDuration}"`,
+            
+    //         '-c:v libx264',
+    //         '-preset ultrafast', // [QUAN TRỌNG] Dùng ultrafast để test cho nhanh (Giảm chất lượng nén chút xíu nhưng render vèo cái xong)
+    //         '-pix_fmt yuv420p',
+    //         '-t', safeDuration,
+    //         '-y',
+    //         `"${videoPath}"`
+    //     ].join(' ');
+
+    //     try {
+    //         console.log(`[VideoService] [TEST MODE] Đang tạo scene giả lập từ ảnh: ${outputFileName} (${safeDuration}s)`);
+    //         await exec(command);
+            
+    //         if(fs.existsSync(tempInputPath)) fs.unlinkSync(tempInputPath);
+    //         return { videoPath, videoUrl };
+
+    //     } catch (error) {
+    //         console.error(`[VideoService] Lỗi FFmpeg:`, error);
+    //         if(fs.existsSync(tempInputPath)) fs.unlinkSync(tempInputPath);
+    //         throw new Error(`FFmpeg failed: ${error.message}`);
+    //     }
+    // }
+
+    /**
      * HÀM ĐÃ SỬA LỖI (Bao gồm cả lỗi cú pháp 'x' và lỗi 'ReferenceError')
      */
     async createScene(sourceB64, duration, outputFileName, isVideo = false) {
@@ -105,55 +165,69 @@ class VideoService {
         let chunkFiles = [];
 
         try {
-            // 1. GHÉP AUDIO VÀO TỪNG VIDEO PANEL (MUXING)
             console.log(`[VideoService] Bắt đầu ghép Audio vào ${sceneList.length} panels...`);
             
             for (let i = 0; i < sceneList.length; i++) {
-                const videoUrl = sceneList[i].videoUrl; // URL: http://localhost.../static/file.mp4
-                const audioUrl = audioList[i].audioUrl;
-                
-                // Lấy đường dẫn file nội bộ từ URL (Giả định URL trỏ về static folder)
-                const videoName = path.basename(videoUrl.split('?')[0]);
-                const audioName = path.basename(audioUrl.split('?')[0]);
-                
-                const videoFilePath = path.join(TEMP_DIR, videoName);
-                const audioFilePath = path.join(TEMP_DIR, audioName);
-                const chunkOutputPath = path.join(TEMP_DIR, `chunk_${i}_${Date.now()}.mp4`);
+                // 1. Lấy đường dẫn file Video (Scene)
+                // sceneList[i].videoUrl dạng: http://.../static/filename.mp4
+                const videoFileName = path.basename(sceneList[i].videoUrl.split('?')[0]);
+                const videoFilePath = path.join(TEMP_DIR, videoFileName);
 
-                // Lệnh FFmpeg: Lấy Video + Lấy Audio -> Copy (không nén lại) -> Output
-                // -c copy: Cực nhanh vì không cần render lại hình ảnh
-                // -shortest: Kết thúc khi stream ngắn hơn kết thúc (thường là bằng nhau do bước 6.3)
-                const command = `ffmpeg -i "${videoFilePath}" -i "${audioFilePath}" -c:v copy -c:a aac -map 0:v:0 -map 1:a:0 -shortest -y "${chunkOutputPath}"`;
+                // 2. Lấy đường dẫn file Audio (MP3)
+                let audioFilePath = null;
+                if (audioList[i] && audioList[i].audioUrl) {
+                    const audioFileName = path.basename(audioList[i].audioUrl.split('?')[0]);
+                    audioFilePath = path.join(TEMP_DIR, audioFileName);
+                }
+
+                const chunkOutputPath = path.join(TEMP_DIR, `chunk_${i}_${Date.now()}.mp4`);
+                let command = '';
+
+                // 3. Xây dựng lệnh FFmpeg
+                if (audioFilePath && fs.existsSync(audioFilePath)) {
+                    // TRƯỜNG HỢP CÓ AUDIO: Mux Video + Audio
+                    // -c:v copy: Giữ nguyên chất lượng video (không render lại)
+                    // -c:a aac: Mã hóa audio sang chuẩn AAC cho MP4
+                    // -shortest: Cắt theo luồng ngắn nhất (thường là bằng nhau do bước 6.3 đã chỉnh duration)
+                    command = `ffmpeg -i "${videoFilePath}" -i "${audioFilePath}" -c:v copy -c:a aac -map 0:v:0 -map 1:a:0 -shortest -y "${chunkOutputPath}"`;
+                } else {
+                    // TRƯỜNG HỢP KHÔNG CÓ AUDIO (Panel câm):
+                    // Tạo track âm thanh rỗng (anullsrc) để tránh lỗi khi nối file
+                    // Bắt buộc phải có audio stream thì file final mới đồng bộ
+                    command = `ffmpeg -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 -i "${videoFilePath}" -c:v copy -c:a aac -shortest -y "${chunkOutputPath}"`;
+                }
                 
                 await exec(command);
-                chunkFiles.push(chunkOutputPath);
+                
+                // Kiểm tra xem file chunk có được tạo ra không
+                if (fs.existsSync(chunkOutputPath)) {
+                    chunkFiles.push(chunkOutputPath);
+                } else {
+                    console.error(`[VideoService] Lỗi: Không tạo được chunk ${chunkOutputPath}`);
+                }
             }
 
-            // 2. TẠO FILE DANH SÁCH ĐỂ NỐI (CONCAT LIST)
-            // Format của file text ffmpeg: file 'path/to/file.mp4'
+            // 4. TẠO FILE LIST ĐỂ NỐI
+            if (chunkFiles.length === 0) throw new Error("Không có video chunk nào được tạo.");
+
             const fileContent = chunkFiles.map(f => {
-                // FFmpeg yêu cầu đường dẫn trong file list phải dùng dấu / (ngay cả trên Windows)
                 const safePath = f.replace(/\\/g, '/');
                 return `file '${safePath}'`;
             }).join('\n');
             
             fs.writeFileSync(concatListPath, fileContent);
 
-            // 3. NỐI TẤT CẢ THÀNH 1 FILE (CONCATENATION)
-            console.log(`[VideoService] Đang nối ${chunkFiles.length} đoạn thành phim hoàn chỉnh...`);
-            
-            // -f concat: Chế độ nối
-            // -safe 0: Cho phép đọc đường dẫn tuyệt đối
+            // 5. NỐI (CONCAT)
+            console.log(`[VideoService] Đang nối ${chunkFiles.length} đoạn...`);
             const concatCommand = `ffmpeg -f concat -safe 0 -i "${concatListPath}" -c copy -y "${finalVideoPath}"`;
             
             await exec(concatCommand);
 
-            // 4. DỌN DẸP FILE TẠM (CHUNKS & LIST)
-            // (Tùy chọn: Bạn có thể giữ lại nếu muốn debug)
+            // 6. DỌN DẸP
             chunkFiles.forEach(f => { if(fs.existsSync(f)) fs.unlinkSync(f); });
             if(fs.existsSync(concatListPath)) fs.unlinkSync(concatListPath);
 
-            console.log(`[VideoService] Xong! File: ${outputFileName}`);
+            console.log(`[VideoService] Xong Final Video: ${outputFileName}`);
             return { finalVideoPath, finalVideoUrl };
 
         } catch (error) {

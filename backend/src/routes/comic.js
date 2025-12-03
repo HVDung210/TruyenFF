@@ -27,7 +27,6 @@ router.post('/comic-to-video/detect-multiple', upload.array('files', 10), contro
 router.post('/comic/crop-panels-multiple', upload.array('files', 10), controller.cropPanelsMultiple);
 router.post('/comic/crop-from-data', upload.array('files', 10), controller.cropFromData);
 
-// [MỚI] Route xóa bong bóng (Inpainting)
 router.post('/comic/video/remove-bubbles', express.json({limit: '50mb'}), controller.removeBubbles);
 // Lưu ý: express.json limit cao để nhận chuỗi base64 lớn
 
