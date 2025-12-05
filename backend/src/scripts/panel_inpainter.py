@@ -61,11 +61,36 @@ def image_to_base64(image_bgr):
     _, buffer = cv2.imencode('.jpg', image_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
     return base64.b64encode(buffer).decode('utf-8')
 
+def expand_contour_with_offset(contour, offset_px=20):
+    """
+    Mở rộng contour ra ngoài bằng cách offset theo pháp tuyến
+    """
+    # Tính tâm của contour
+    M = cv2.moments(contour)
+    if M['m00'] == 0:
+        return contour
+    
+    cx = int(M['m10'] / M['m00'])
+    cy = int(M['m01'] / M['m00'])
+    center = np.array([cx, cy])
+    
+    # Mở rộng mỗi điểm theo hướng từ tâm ra ngoài
+    expanded_points = []
+    for point in contour:
+        pt = point[0]
+        # Vector từ tâm đến điểm
+        vec = pt - center
+        vec_norm = vec / (np.linalg.norm(vec) + 1e-6)
+        # Điểm mới = điểm cũ + offset theo hướng ra ngoài
+        new_pt = pt + (vec_norm * offset_px).astype(int)
+        expanded_points.append(new_pt)
+    
+    return np.array(expanded_points).reshape(-1, 1, 2)
+
 def get_bubble_mask_yolo(image_bgr, model):
     h, w = image_bgr.shape[:2]
     final_mask = np.zeros((h, w), dtype=np.uint8)
 
-    # Cấu hình: conf=0.2, iou=0.4 để bắt tốt các bong bóng
     results = model.predict(image_bgr, conf=0.2, iou=0.4, retina_masks=True, verbose=False)
     
     if results[0].masks is not None:
@@ -73,11 +98,29 @@ def get_bubble_mask_yolo(image_bgr, model):
         for m in masks:
             m_resized = cv2.resize(m, (w, h))
             binary_mask = (m_resized > 0.5).astype(np.uint8) * 255
-            final_mask = np.maximum(final_mask, binary_mask)
             
-    # Mở rộng mask
-    kernel = np.ones((10, 10), np.uint8)
-    final_mask = cv2.dilate(final_mask, kernel, iterations=2)
+            contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            for cnt in contours:
+                if len(cnt) < 3:
+                    continue
+                
+                # BƯỚC 1: Tạo Convex Hull
+                hull = cv2.convexHull(cnt)
+                
+                # BƯỚC 2: Mở rộng hull ra ngoài 20-25px (để bao cả gai)
+                expanded_hull = expand_contour_with_offset(hull, offset_px=25)
+                
+                # BƯỚC 3: Tạo Convex Hull mới từ điểm đã mở rộng
+                final_hull = cv2.convexHull(expanded_hull)
+                
+                # Vẽ vào mask
+                cv2.drawContours(final_mask, [final_hull], -1, 255, -1)
+    
+    # Làm mịn nhẹ
+    final_mask = cv2.GaussianBlur(final_mask, (5, 5), 0)
+    _, final_mask = cv2.threshold(final_mask, 127, 255, cv2.THRESH_BINARY)
+    
     return final_mask
 
 def smart_crop_inpaint(image, mask, lama_model):
@@ -97,7 +140,7 @@ def smart_crop_inpaint(image, mask, lama_model):
         return result_image # Không có gì để xóa
 
     # 2. Duyệt qua từng bong bóng để xử lý riêng
-    padding = 50 # Lấy rộng ra 50px để LaMa có ngữ cảnh vẽ nền
+    padding = 100 # Lấy rộng ra 100px để LaMa có ngữ cảnh vẽ nền
     
     for cnt in contours:
         x, y, w, h = cv2.boundingRect(cnt)

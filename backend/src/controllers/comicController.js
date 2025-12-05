@@ -444,7 +444,7 @@ exports.removeBubbles = async (req, res) => {
 
 // --- CẤU HÌNH KẾT NỐI KAGGLE ---
 // URL này thay đổi mỗi lần bạn chạy lại Kaggle, hãy cập nhật nó
-const KAGGLE_API_URL = "https://845c168a0958.ngrok-free.app"; // <--- URL NGROK TỪ KAGGLE
+const KAGGLE_API_URL = "https://81093b8dba90.ngrok-free.app"; // <--- URL NGROK TỪ KAGGLE
 
 const httpsAgent = new https.Agent({ keepAlive: true });
 
@@ -483,7 +483,7 @@ exports.generateVideoAI = async (req, res) => {
             const imageForVideo = panel.inpaintedImageB64 || panel.croppedImageBase64 || panel.imageB64; 
 
             // --- 2. PHÂN TÍCH MOTION (GEMINI) ---
-            let motionParams = { motion_bucket_id: 127, fps: 7 }; // Giá trị mặc định
+            let motionParams = { motion_bucket_id: 75, fps: 7 }; // Giá trị mặc định
             
             try {
                 if (imageForAnalysis) {
@@ -493,7 +493,7 @@ exports.generateVideoAI = async (req, res) => {
                     console.log(`      📝 [GEMINI JSON]:`, JSON.stringify(analysis));
                     
                     if (analysis && analysis.motion_score) {
-                        motionParams.motion_bucket_id = analysis.motion_score || 127;
+                        motionParams.motion_bucket_id = analysis.motion_score || 75;
                         motionParams.fps = analysis.recommended_fps || 7;
                         console.log(`      💡 Gemini: "${analysis.category}", Motion: ${motionParams.motion_bucket_id}`);
                     }
@@ -834,7 +834,7 @@ exports.generateFinalVideo = async (req, res) => {
 /**
   * BƯỚC 7.5: TẠO VIDEO TỔNG HỢP (FULL CHAPTER)
   */
-  exports.generateMegaVideo = async (req, res) => {
+exports.generateMegaVideo = async (req, res) => {
     try {
         const { finalVideos } = req.body; // Danh sách URL từ bước 7.4
 

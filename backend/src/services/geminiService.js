@@ -18,29 +18,39 @@ exports.analyzePanelMotion = async (imageBase64) => {
   try {
     // Prompt nâng cấp: Kết hợp cả Hình ảnh + Nội dung Text
     const prompt = `
-      Analyze this comic panel for video generation.
+      Analyze this comic panel for video generation using Stable Video Diffusion (SVD).
       
-      Combine both VISUAL CUES (speed lines, poses) and TEXT CONTEXT (Speech bubbles, Sound Effects/SFX) to determine the motion intensity.
+      Combine VISUAL CUES (speed lines, poses, blur) and TEXT CONTEXT (SFX, dialogue) to determine motion intensity.
 
       RULES FOR ANALYSIS:
-      1. **Read the Text/SFX**: 
-         - If text contains loud Sound Effects (e.g., "BOOM", "BANG", "CRASH", "SWOOSH") or Shouting ("!!!") -> Lean towards HIGH MOTION.
-         - If text is normal dialogue or monologues -> Lean towards LOW MOTION (Static/Talking).
-      2. **Observe Visuals**:
-         - Action poses, fighting, explosions -> HIGH MOTION.
-         - Standing still, close-up faces -> LOW MOTION.
+      1. **Text/SFX**: 
+         - Loud SFX ("BOOM", "CRASH", "SWOOSH") -> HIGH MOTION.
+         - Dialogue/Monologue -> LOW MOTION.
+      2. **Visuals**:
+         - Fight, Explosion, Running -> HIGH MOTION.
+         - Walking, Wind, Shock -> MEDIUM MOTION.
+         - Standing, Close-up face -> LOW MOTION.
 
-      DECISION LOGIC:
-      - High Motion (Score 150-200): Fights, Explosions, Running, Screaming, Loud SFX.
-      - Medium Motion (Score 80-120): Walking, Windy hair, Emotional shock, Zoom in.
-      - Low Motion (Score 30-60): Talking, Thinking, Scenery, Standing.
+      *** CRITICAL SVD SETTINGS (Follow strictly): ***
+      
+      - HIGH MOTION (Action/SFX):
+        * motion_score: 110 - 127 (Do NOT exceed 127 to prevent image distortion).
+        * recommended_fps: 8 - 10 (Smoother for action).
+        
+      - MEDIUM MOTION (Walking/Wind):
+        * motion_score: 60 - 90 (Natural movement).
+        * recommended_fps: 7 - 8.
+        
+      - LOW MOTION (Talking/Static):
+        * motion_score: 20 - 40 (Keep faces stable, subtle movement only).
+        * recommended_fps: 6 (Slower playback).
 
       Output strictly in this JSON format:
       {
-        "description": "Brief description including what text implies (e.g., 'Character shouting loudly with speed lines')",
+        "description": "Brief description of action",
         "category": "ACTION" or "TALK" or "SCENERY",
-        "motion_score": Integer between 1 and 255,
-        "recommended_fps": Integer between 6 and 10
+        "motion_score": Integer,
+        "recommended_fps": Integer
       }
     `;
     
