@@ -102,149 +102,48 @@ def get_bubble_mask_yolo(image_bgr, model):
             contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             
             for cnt in contours:
-                if len(cnt) < 5:
-                    hull = cv2.convexHull(cnt)
-                    cv2.drawContours(final_mask, [hull], -1, 255, -1)
+                if len(cnt) < 3:
                     continue
                 
-                hull = cv2.convexHull(cnt, returnPoints=False)
-                hull_points = cv2.convexHull(cnt)
+                # BƯỚC 1: Tạo Convex Hull
+                hull = cv2.convexHull(cnt)
                 
-                hull_area = cv2.contourArea(hull_points)
-                contour_area = cv2.contourArea(cnt)
+                # BƯỚC 2: Mở rộng hull ra ngoài 20-25px (để bao cả gai)
+                expanded_hull = expand_contour_with_offset(hull, offset_px=25)
                 
-                if hull_area == 0:
-                    cv2.drawContours(final_mask, [cnt], -1, 255, -1)
-                    continue
-                
-                convexity = contour_area / hull_area
-                
-                hull_perimeter = cv2.arcLength(hull_points, True)
-                contour_perimeter = cv2.arcLength(cnt, True)
-                
-                if hull_perimeter == 0:
-                    perimeter_ratio = 1.0
-                else:
-                    perimeter_ratio = contour_perimeter / hull_perimeter
-                
-                defects = cv2.convexityDefects(cnt, hull)
-                max_depth = 0
-                
-                if defects is not None:
-                    for i in range(defects.shape[0]):
-                        s, e, f, d = defects[i, 0]
-                        depth = d / 256.0
-                        if depth > max_depth:
-                            max_depth = depth
-                
-                x, y, bw, bh = cv2.boundingRect(hull_points)
-                bubble_size = max(bw, bh)
-                
-                has_spikes = False
-                spike_type = "NONE"
-                
-                # ⭐ ĐIỀU CHỈNH NGƯỠNG
-                
-                # Điều kiện 1: Gai dài (Convexity Defects)
-                if max_depth > 8:  # Giảm từ 10 xuống 8
-                    has_spikes = True
-                    spike_type = "LONG"
-                
-                # Điều kiện 2: Gai ngắn dày đặc (Perimeter Ratio)
-                elif perimeter_ratio > 1.04:  # ⭐ GIẢM TỪ 1.15 XUỐNG 1.04
-                    has_spikes = True
-                    spike_type = "SHORT"
-                
-                # Điều kiện 3: Độ lồi thấp (Convexity)
-                elif convexity < 0.92:  # Nới lỏng từ 0.90 lên 0.92
-                    has_spikes = True
-                    spike_type = "ROUGH"
-                
-                # ⭐ TĂNG OFFSET CHO GẠI NGẮN
-                if has_spikes:
-                    if spike_type == "LONG":
-                        offset_ratio = 0.15
-                        offset_px = int(bubble_size * offset_ratio)
-                        offset_px = max(20, min(offset_px, 40))
-                    else:
-                        # ⭐ TĂNG OFFSET TỪ 18-30 LÊN 22-35
-                        offset_ratio = 0.14  # Tăng từ 0.12 lên 0.14
-                        offset_px = int(bubble_size * offset_ratio)
-                        offset_px = max(22, min(offset_px, 35))  # Tăng min từ 18→22, max từ 30→35
-                    
-                    sys.stderr.write(
-                        f"[PY] ⚡ SPIKY bubble {bw}x{bh}px "
-                        f"(type={spike_type}, depth={max_depth:.1f}px, "
-                        f"convexity={convexity:.3f}, perimeter_ratio={perimeter_ratio:.3f}) "
-                        f"→ offset={offset_px}px\n"
-                    )
-                else:
-                    offset_ratio = 0.08
-                    offset_px = int(bubble_size * offset_ratio)
-                    offset_px = max(10, min(offset_px, 20))
-                    
-                    sys.stderr.write(
-                        f"[PY] ⚪ SMOOTH bubble {bw}x{bh}px "
-                        f"(depth={max_depth:.1f}px, convexity={convexity:.3f}, "
-                        f"perimeter_ratio={perimeter_ratio:.3f}) → offset={offset_px}px\n"
-                    )
-                
-                expanded_hull = expand_contour_with_offset(hull_points, offset_px=offset_px)
+                # BƯỚC 3: Tạo Convex Hull mới từ điểm đã mở rộng
                 final_hull = cv2.convexHull(expanded_hull)
+                
+                # Vẽ vào mask
                 cv2.drawContours(final_mask, [final_hull], -1, 255, -1)
     
+    # Làm mịn nhẹ
     final_mask = cv2.GaussianBlur(final_mask, (5, 5), 0)
     _, final_mask = cv2.threshold(final_mask, 127, 255, cv2.THRESH_BINARY)
     
     return final_mask
 
 def smart_crop_inpaint(image, mask, lama_model):
+    """
+    Kỹ thuật: Cắt vùng nhỏ quanh bong bóng để inpaint nhằm giữ độ nét,
+    sau đó dán ngược lại ảnh gốc.
+    """
     h_orig, w_orig = image.shape[:2]
+    
+    # 1. Tìm các vùng bong bóng riêng biệt (contours)
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    # Tạo ảnh kết quả (copy từ ảnh gốc)
     result_image = image.copy()
     
     if not contours:
-        return result_image
+        return result_image # Không có gì để xóa
 
+    # 2. Duyệt qua từng bong bóng để xử lý riêng
+    padding = 100 # Lấy rộng ra 100px để LaMa có ngữ cảnh vẽ nền
+    
     for cnt in contours:
         x, y, w, h = cv2.boundingRect(cnt)
-        
-        bubble_size = max(w, h)
-        
-        # ⭐ BƯỚC 1: Tính padding cơ bản theo bubble
-        if bubble_size < 60:
-            base_padding = 40   # Bubble cực nhỏ (text ngắn)
-        elif bubble_size < 100:
-            base_padding = 60   
-        elif bubble_size < 200:
-            base_padding = 80   
-        elif bubble_size < 350:
-            base_padding = 100  
-        elif bubble_size < 500:
-            base_padding = 130  
-        else:
-            base_padding = 160  
-        
-        # ⭐ BƯỚC 2: Giới hạn theo ảnh 
-        max_padding_from_image = min(h_orig, w_orig) * 0.25
-        
-        # ⭐ BƯỚC 3: Áp dụng giới hạn NHƯNG ƯU TIÊN bubble lớn
-        if bubble_size >= 300:  # Bubble lớn (>= 300px)
-            # Cho phép padding lớn hơn, tối thiểu 100px
-            padding = max(100, min(base_padding, int(max_padding_from_image)))
-        else:  # Bubble nhỏ/trung bình
-            padding = min(base_padding, int(max_padding_from_image))
-        
-        # ⭐ BƯỚC 4: Padding tối thiểu linh động
-        min_padding = min(40, bubble_size // 2)  # Tối thiểu = 50% kích thước bubble
-        padding = max(min_padding, padding)
-        
-        # Log chi tiết
-        sys.stderr.write(
-            f"[PY] Bubble {w}x{h}px → base={base_padding}px, "
-            f"max_allowed={int(max_padding_from_image)}px, "
-            f"final={padding}px (image={w_orig}x{h_orig})\n"
-        )
         
         # Tính toán vùng crop (đảm bảo không vượt quá biên ảnh)
         x1 = max(0, x - padding)
@@ -257,8 +156,7 @@ def smart_crop_inpaint(image, mask, lama_model):
         roi_mask = mask[y1:y2, x1:x2]
         
         # Nếu vùng crop quá nhỏ hoặc rỗng, bỏ qua
-        if roi_img.size == 0 or roi_mask.size == 0: 
-            continue
+        if roi_img.size == 0 or roi_mask.size == 0: continue
 
         # Chuyển sang PIL cho LaMa
         roi_pil = Image.fromarray(cv2.cvtColor(roi_img, cv2.COLOR_BGR2RGB))
@@ -279,7 +177,7 @@ def smart_crop_inpaint(image, mask, lama_model):
             result_image[y1:y2, x1:x2] = roi_result_bgr
             
         except Exception as e:
-            sys.stderr.write(f"[PY][WARN] Failed to inpaint bubble (w={w}, h={h}, padding={padding}): {e}\n")
+            sys.stderr.write(f"[PY][WARN] Failed to inpaint region: {e}\n")
             continue
 
     return result_image
