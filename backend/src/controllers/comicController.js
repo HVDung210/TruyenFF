@@ -444,7 +444,7 @@ exports.removeBubbles = async (req, res) => {
 
 // --- CẤU HÌNH KẾT NỐI KAGGLE ---
 // URL này thay đổi mỗi lần bạn chạy lại Kaggle, hãy cập nhật nó
-const KAGGLE_API_URL = "https://81093b8dba90.ngrok-free.app"; // <--- URL NGROK TỪ KAGGLE
+const KAGGLE_API_URL = "https://5fa6e9937ff9.ngrok-free.app"; // <--- URL NGROK TỪ KAGGLE
 
 const httpsAgent = new https.Agent({ keepAlive: true });
 

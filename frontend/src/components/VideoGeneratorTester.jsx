@@ -399,7 +399,7 @@ const VideoGeneratorTester = ({
 
       {/* THÊM NÚT NÀY VÀO DƯỚI NÚT "SINH VIDEO AI" */}
       <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
-          <h3 className="text-lg font-semibold text-blue-300 mb-3">Bước 7.3: Ghép Scene (Final)</h3>
+          <h3 className="text-lg font-semibold text-blue-300 mb-3">Bước 7.3: Ghép Scene</h3>
           <p className="text-gray-400 text-sm mb-4">
             Ghép scene bằng hiệu ứng Boomerang.
           </p>
@@ -445,7 +445,7 @@ const VideoGeneratorTester = ({
         </div>
       )}
 
-      {/* --- BƯỚC 7.4: XUẤT BẢN TỪNG TRANG (Đổi tên một chút cho rõ) --- */}
+      {/* --- BƯỚC 7.4: XUẤT BẢN TỪNG TRANG --- */}
       {sceneData.length > 0 && (
         <div className="mt-8 border-t border-slate-700 pt-8 pb-6">
             <h3 className="text-xl font-bold text-blue-400 mb-3">Bước 7.4: Xuất bản Video Từng Trang</h3>
@@ -490,7 +490,7 @@ const VideoGeneratorTester = ({
                     <video controls autoPlay className="w-full" src={megaVideo.finalUrl} />
                     <div className="p-4 bg-slate-900 text-center">
                         <a href={megaVideo.finalUrl} download className="inline-block bg-white text-orange-600 font-bold px-8 py-3 rounded-full hover:bg-gray-200 transition-colors">
-                            ⬇️ TẢI PHIM VỀ MÁY
+                          TẢI VIDEO VỀ MÁY
                         </a>
                     </div>
                 </div>
