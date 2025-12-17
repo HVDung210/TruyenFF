@@ -244,15 +244,15 @@ const VideoGeneratorTester = ({
     }
   };
 
-  // --- HÀM BƯỚC 7.4 ---
+  // --- HÀM BƯỚC 8.4 ---
   const handleGenerateFinal = async () => {
     if (sceneData.length === 0) return;
     setLoadingFinal(true);
     
     try {
         const payload = {
-            sceneData: sceneData, // Kết quả bước 7.3 (Video câm)
-            videoData: videoData  // Kết quả bước 7.1 (Audio)
+            sceneData: sceneData, // Kết quả bước 8.3 (Video câm)
+            videoData: videoData  // Kết quả bước 8.1 (Audio)
         };
 
         const res = await fetch(`${API_BASE_URL}/api/comic/video/generate-final`, {
@@ -274,7 +274,7 @@ const VideoGeneratorTester = ({
     }
   };
 
-  // --- HÀM 7.5: GHÉP TOÀN BỘ ---
+  // --- HÀM 8.5: GHÉP TOÀN BỘ ---
   const handleGenerateMega = async () => {
     if (!finalVideos || finalVideos.length === 0) return;
     setLoadingMega(true);
@@ -302,11 +302,11 @@ const VideoGeneratorTester = ({
 
   return (
     <div className="pt-6 bg-slate-900 min-h-screen text-gray-200">
-      <h2 className="text-xl font-bold mb-4 text-blue-400 pt-6">7. Tạo Video</h2>
+      <h2 className="text-xl font-bold mb-4 text-blue-400 pt-6">8. Tạo Video</h2>
       
-      {/* --- Bước 7.1: Tạo Audio --- */}
+      {/* --- Bước 8.1: Tạo Audio --- */}
       <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
-        <h3 className="text-lg font-semibold text-blue-300 mb-3">Bước 7.1: Tạo Âm thanh (TTS)</h3>
+        <h3 className="text-lg font-semibold text-blue-300 mb-3">Bước 8.1: Tạo Âm thanh (TTS)</h3>
         
         {!isReadyForAudio && files.length > 0 && (
           <p className="text-yellow-400 mb-4">Vui lòng chạy "Bước 1" trước.</p>
@@ -330,7 +330,7 @@ const VideoGeneratorTester = ({
       {/* --- Hiển thị kết quả Audio --- */}
       {videoData.length > 0 && (
         <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
-          <h3 className="text-lg font-semibold text-blue-300 mb-4">Kết quả Audio (Bước 7.1)</h3>
+          <h3 className="text-lg font-semibold text-blue-300 mb-4">Kết quả Audio (Bước 8.1)</h3>
           <div className="space-y-4">
             {videoData.map((file) => (
               <div key={file.fileName} className="bg-slate-700 p-3 rounded-lg">
@@ -361,9 +361,9 @@ const VideoGeneratorTester = ({
         </div>
       )}
 
-      {/* BƯỚC 7.2: AI MOTION (SVD) - MỚI */}
+      {/* BƯỚC 8.2: AI MOTION (SVD) - MỚI */}
       <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
-        <h3 className="text-lg font-semibold text-blue-300 mb-3">Bước 7.2: Tạo Chuyển Động (SVD AI)</h3>
+        <h3 className="text-lg font-semibold text-blue-300 mb-3">Bước 8.2: Tạo Chuyển Động (SVD AI)</h3>
         <p className="text-gray-400 text-sm mb-4">
             Sinh video AI.
         </p>
@@ -399,7 +399,7 @@ const VideoGeneratorTester = ({
 
       {/* THÊM NÚT NÀY VÀO DƯỚI NÚT "SINH VIDEO AI" */}
       <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
-          <h3 className="text-lg font-semibold text-blue-300 mb-3">Bước 7.3: Ghép Scene</h3>
+          <h3 className="text-lg font-semibold text-blue-300 mb-3">Bước 8.3: Ghép Scene</h3>
           <p className="text-gray-400 text-sm mb-4">
             Ghép scene bằng hiệu ứng Boomerang.
           </p>
@@ -445,10 +445,10 @@ const VideoGeneratorTester = ({
         </div>
       )}
 
-      {/* --- BƯỚC 7.4: XUẤT BẢN TỪNG TRANG --- */}
+      {/* --- BƯỚC 8.4: XUẤT BẢN TỪNG TRANG --- */}
       {sceneData.length > 0 && (
         <div className="mt-8 border-t border-slate-700 pt-8 pb-6">
-            <h3 className="text-xl font-bold text-blue-400 mb-3">Bước 7.4: Xuất bản Video Từng Trang</h3>
+            <h3 className="text-xl font-bold text-blue-400 mb-3">Bước 8.4: Xuất bản Video Từng Trang</h3>
             <p className="text-gray-400 text-sm mb-4">tạo ra video hoàn chỉnh cho mỗi trang truyện.</p>
             
             <button onClick={handleGenerateFinal} disabled={loadingFinal}
@@ -456,7 +456,7 @@ const VideoGeneratorTester = ({
                 {loadingFinal ? 'Đang xử lý...' : 'Tạo Video Từng Trang'}
             </button>
 
-            {/* Hiển thị list video 7.4 */}
+            {/* Hiển thị list video 8.4 */}
             {finalVideos.length > 0 && (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
                     {finalVideos.map((video, idx) => (
@@ -470,10 +470,10 @@ const VideoGeneratorTester = ({
         </div>
       )}
 
-      {/* --- BƯỚC 7.5: GHÉP TOÀN BỘ CHAPTER (FINAL CỦA FINAL) --- */}
+      {/* --- BƯỚC 8.5: GHÉP TOÀN BỘ CHAPTER (FINAL CỦA FINAL) --- */}
       {finalVideos.length > 0 && (
         <div className="mt-8 border-t-2 border-orange-600 pt-8 pb-12 text-center">
-            <h3 className="text-3xl font-extrabold text-orange-500 mb-4 animate-pulse">BƯỚC 7.5: FINAL CHAPTER</h3>
+            <h3 className="text-3xl font-extrabold text-orange-500 mb-4 animate-pulse">BƯỚC 8.5: FINAL CHAPTER</h3>
             <p className="text-gray-300 mb-6">Nối tất cả các video.</p>
             
             <button onClick={handleGenerateMega} disabled={loadingMega}

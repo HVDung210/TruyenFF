@@ -6,6 +6,7 @@ import PanelCropperTester from './PanelCropperTester';
 import TextEditorTester from './TextEditorTester';
 import VideoGeneratorTester from './VideoGeneratorTester';
 import InpaintingTester from './InpaintingTester';
+import BubbleDetectionTester from './BubbleDetectionTester';
 
 const ComicAnalysisDashboard = () => {
   const [activeTab, setActiveTab] = useState('panels');
@@ -24,10 +25,10 @@ const ComicAnalysisDashboard = () => {
     { id: 'editor', label: '2. Panel Editor', component: PanelEditorTester },
     { id: 'crop', label: '3. Panel Cropper', component: PanelCropperTester },
     { id: 'text', label: '4. Text Detection', component: TextDetectionTester },
-    // { id: 'api-test', label: 'API Tester', component: TextDetectionAPITester }
-    { id: 'inpainting', label: '5. Inpainting', component: InpaintingTester },
-    { id: 'text-editor', label: '6. Text Editor', component: TextEditorTester }, 
-    { id: 'video', label: '7. Video Generation', component: VideoGeneratorTester }
+    { id: 'bubble', label: '5. Bubble Detection', component: BubbleDetectionTester },
+    { id: 'inpainting', label: '6. Inpainting', component: InpaintingTester },
+    { id: 'text-editor', label: '7. Text Editor', component: TextEditorTester }, 
+    { id: 'video', label: '8. Video Generation', component: VideoGeneratorTester }
     
   ];
 
@@ -45,6 +46,7 @@ const ComicAnalysisDashboard = () => {
       editedDetectionData: null, // <-- STATE MỚI: Lưu kết quả đã chỉnh sửa
       cropData: null,
       textData: null,
+      bubbleData: null,
       inpaintedData: null,
       editedTextData: null
     }));

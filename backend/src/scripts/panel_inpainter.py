@@ -61,7 +61,7 @@ def image_to_base64(image_bgr):
     _, buffer = cv2.imencode('.jpg', image_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
     return base64.b64encode(buffer).decode('utf-8')
 
-def expand_contour_with_offset(contour, offset_px=20):
+def expand_contour_with_offset(contour, offset_px=10):
     """
     Mở rộng contour ra ngoài bằng cách offset theo pháp tuyến
     """
@@ -90,6 +90,7 @@ def expand_contour_with_offset(contour, offset_px=20):
 def get_bubble_mask_yolo(image_bgr, model):
     h, w = image_bgr.shape[:2]
     final_mask = np.zeros((h, w), dtype=np.uint8)
+    offset_px = 20
 
     results = model.predict(image_bgr, conf=0.2, iou=0.4, retina_masks=True, verbose=False)
     
@@ -98,89 +99,20 @@ def get_bubble_mask_yolo(image_bgr, model):
         for m in masks:
             m_resized = cv2.resize(m, (w, h))
             binary_mask = (m_resized > 0.5).astype(np.uint8) * 255
+
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (offset_px, offset_px))
+            dilated_mask = cv2.dilate(binary_mask, kernel, iterations=1)
             
-            contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            contours, _ = cv2.findContours(dilated_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             
             for cnt in contours:
-                if len(cnt) < 3:
-                    continue
-                
-                # BƯỚC 1: Tạo Convex Hull
-                hull = cv2.convexHull(cnt)
-                
-                # BƯỚC 2: Mở rộng hull ra ngoài 20-25px (để bao cả gai)
-                expanded_hull = expand_contour_with_offset(hull, offset_px=25)
-                
-                # BƯỚC 3: Tạo Convex Hull mới từ điểm đã mở rộng
-                final_hull = cv2.convexHull(expanded_hull)
-                
-                # Vẽ vào mask
-                cv2.drawContours(final_mask, [final_hull], -1, 255, -1)
+                cv2.drawContours(final_mask, [cnt], -1, 255, -1)
     
     # Làm mịn nhẹ
     final_mask = cv2.GaussianBlur(final_mask, (5, 5), 0)
     _, final_mask = cv2.threshold(final_mask, 127, 255, cv2.THRESH_BINARY)
     
     return final_mask
-
-def smart_crop_inpaint(image, mask, lama_model):
-    """
-    Kỹ thuật: Cắt vùng nhỏ quanh bong bóng để inpaint nhằm giữ độ nét,
-    sau đó dán ngược lại ảnh gốc.
-    """
-    h_orig, w_orig = image.shape[:2]
-    
-    # 1. Tìm các vùng bong bóng riêng biệt (contours)
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-    # Tạo ảnh kết quả (copy từ ảnh gốc)
-    result_image = image.copy()
-    
-    if not contours:
-        return result_image # Không có gì để xóa
-
-    # 2. Duyệt qua từng bong bóng để xử lý riêng
-    padding = 100 # Lấy rộng ra 100px để LaMa có ngữ cảnh vẽ nền
-    
-    for cnt in contours:
-        x, y, w, h = cv2.boundingRect(cnt)
-        
-        # Tính toán vùng crop (đảm bảo không vượt quá biên ảnh)
-        x1 = max(0, x - padding)
-        y1 = max(0, y - padding)
-        x2 = min(w_orig, x + w + padding)
-        y2 = min(h_orig, y + h + padding)
-        
-        # Cắt ảnh con (ROI - Region of Interest)
-        roi_img = result_image[y1:y2, x1:x2]
-        roi_mask = mask[y1:y2, x1:x2]
-        
-        # Nếu vùng crop quá nhỏ hoặc rỗng, bỏ qua
-        if roi_img.size == 0 or roi_mask.size == 0: continue
-
-        # Chuyển sang PIL cho LaMa
-        roi_pil = Image.fromarray(cv2.cvtColor(roi_img, cv2.COLOR_BGR2RGB))
-        mask_pil = Image.fromarray(roi_mask)
-        
-        try:
-            # CHẠY LAMA TRÊN ẢNH NHỎ (Độ nét cao)
-            roi_result_pil = lama_model(roi_pil, mask_pil)
-            
-            # Chuyển về OpenCV
-            roi_result_bgr = cv2.cvtColor(np.array(roi_result_pil), cv2.COLOR_RGB2BGR)
-            
-            # Dán đè vùng đã xử lý vào ảnh lớn
-            # Lưu ý: LaMa có thể resize ảnh con một chút, cần resize về đúng kích thước ROI
-            if roi_result_bgr.shape[:2] != roi_img.shape[:2]:
-                 roi_result_bgr = cv2.resize(roi_result_bgr, (roi_img.shape[1], roi_img.shape[0]))
-                 
-            result_image[y1:y2, x1:x2] = roi_result_bgr
-            
-        except Exception as e:
-            sys.stderr.write(f"[PY][WARN] Failed to inpaint region: {e}\n")
-            continue
-
-    return result_image
 
 def process_inpainting(data, lama_model, seg_model):
     img_b64 = data.get('imageB64')
@@ -200,10 +132,18 @@ def process_inpainting(data, lama_model, seg_model):
                 "message": "Không tìm thấy bong bóng (YOLO)"
             }
 
-        # 2. Inpaint thông minh (theo từng vùng crop)
-        # Thay vì đưa cả ảnh to vào LaMa, ta dùng hàm smart_crop_inpaint
-        result_bgr = smart_crop_inpaint(image, mask, lama_model)
+        # ⭐ 2. INPAINT TOÀN BỘ ẢNH VỚI MASK TOÀN CỤC
+        # Chuyển sang PIL
+        image_pil = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        mask_pil = Image.fromarray(mask)
         
+        # LaMa inpaint toàn bộ ảnh
+        result_pil = lama_model(image_pil, mask_pil)
+        
+        # Chuyển về OpenCV
+        result_bgr = cv2.cvtColor(np.array(result_pil), cv2.COLOR_RGB2BGR)
+        
+        # Encode về Base64
         output_b64 = image_to_base64(result_bgr)
         
         return {

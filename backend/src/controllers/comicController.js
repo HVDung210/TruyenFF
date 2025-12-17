@@ -19,7 +19,7 @@ const PY_SCRIPT_DETECT = path.join(__dirname, '..', 'scripts', 'panel_detector_y
 const PY_SCRIPT_CROP = path.join(__dirname, '..', 'scripts', 'panel_cropper.py');
 const PY_SCRIPT_INPAINT = path.join(__dirname, '..', 'scripts', 'panel_inpainter.py');
 const PY_SCRIPT_ANIMATE = path.join(__dirname, '..', 'scripts', 'panel_animator.py');
-
+const PY_SCRIPT_BUBBLE_DETECT = path.join(__dirname, '..', 'scripts', 'bubble_detector.py');
 /**
  * Hàm chung để gọi script Python
  * @param {Object} file - Đối tượng file từ multer
@@ -288,77 +288,61 @@ exports.generateAudio = async (req, res) => {
   }
 };
 
-// exports.generateScenes = async (req, res) => {
-//   try {
-//       // 1. Nhận 2 bộ dữ liệu từ frontend
-//       const { videoData, cropData } = req.body;
 
-//       if (!videoData || !cropData) {
-//           return res.status(400).json({ success: false, error: 'Thiếu videoData hoặc cropData' });
-//       }
+/**
+ * DETECT BUBBLES TRÊN PANEL CROP (JSON INPUT)
+ */
+exports.detectBubblesMultiple = async (req, res) => {
+  try {
+    const { cropData } = req.body; // Nhận dữ liệu crop từ frontend
 
-//       console.log(`[ComicController] Nhận yêu cầu tạo scene cho ${cropData.length} file...`);
+    if (!cropData || !Array.isArray(cropData)) {
+      return res.status(400).json({ error: 'Thiếu dữ liệu cropData' });
+    }
 
-//       const allSceneData = [];
+    // Chuẩn bị payload cho Python (giống cấu trúc Inpaint)
+    // Lọc lấy các panel có ảnh croppedImageBase64
+    const filesData = cropData.map(file => ({
+        fileName: file.fileName,
+        panels: file.panels.filter(p => p.croppedImageBase64).map(p => ({
+            panelId: p.id,
+            croppedImageBase64: p.croppedImageBase64
+        }))
+    }));
 
-//       // 2. Lặp qua từng file (ví dụ: page_01.jpg, page_02.jpg)
-//       for (const fileCropData of cropData) {
-//           const fileName = fileCropData.fileName;
-          
-//           // Tìm audio data (chứa duration) tương ứng
-//           const fileAudioData = videoData.find(f => f.fileName === fileName);
-//           if (!fileAudioData) continue;
+    // Gọi Python
+    const pythonCmd = process.env.PYTHON_CMD || 'python';
+    const py = spawn(pythonCmd, [PY_SCRIPT_BUBBLE_DETECT]);
 
-//           const fileSceneData = {
-//               fileName: fileName,
-//               panels: []
-//           };
+    let stdout = '';
+    let stderr = '';
 
-//           // 3. Lặp qua từng panel trong file
-//           for (const panelCrop of fileCropData.panels) {
-//               const panelId = panelCrop.id;
+    py.stdin.write(JSON.stringify({ filesData }));
+    py.stdin.end();
 
-//               // Tìm duration tương ứng
-//               const panelAudio = fileAudioData.panels.find(p => p.panelId === panelId);
-//               if (!panelAudio) continue;
+    py.stdout.on('data', (data) => stdout += data.toString());
+    py.stderr.on('data', (data) => {
+        stderr += data.toString();
+        console.log('[PYTHON DETECT]', data.toString().trim());
+    });
 
-//               const duration = panelAudio.duration;
-//               const imageB64 = panelCrop.croppedImageBase64;
-//               const outputFileName = `${path.parse(fileName).name}_panel_${panelId}.mp4`;
+    py.on('close', (code) => {
+        if (code !== 0) {
+            return res.status(500).json({ error: 'Python detect failed', details: stderr });
+        }
+        try {
+            const result = JSON.parse(stdout);
+            res.json({ success: true, data: result.data });
+        } catch (e) {
+            res.status(500).json({ error: 'JSON parse error', details: stdout });
+        }
+    });
 
-//               try {
-//                   // 4. Gọi VideoService để tạo clip .mp4
-//                   const { videoPath, videoUrl } = await videoService.createScene(
-//                       imageB64,
-//                       duration,
-//                       outputFileName
-//                   );
-                  
-//                   fileSceneData.panels.push({
-//                       panelId: panelId,
-//                       duration: duration,
-//                       videoUrl: videoUrl,
-//                   });
-
-//               } catch (error) {
-//                   console.error(`[ComicController] Lỗi tạo scene cho ${outputFileName}:`, error);
-//                   // Bỏ qua panel này nếu lỗi
-//               }
-//           }
-//           allSceneData.push(fileSceneData);
-//       }
-
-//       res.json({
-//           success: true,
-//           data: allSceneData,
-//           message: 'Tạo scene video thành công'
-//       });
-
-//   } catch (error) {
-//       console.error('[ComicController] Lỗi tạo scenes:', error);
-//       res.status(500).json({ success: false, error: error.message });
-//   }
-// };
+  } catch (err) {
+    console.error('[detectBubblesMultiple] Fatal error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+};
 
 /**
  * [MỚI] HÀM: Xóa bong bóng thoại (Inpainting)
@@ -444,7 +428,7 @@ exports.removeBubbles = async (req, res) => {
 
 // --- CẤU HÌNH KẾT NỐI KAGGLE ---
 // URL này thay đổi mỗi lần bạn chạy lại Kaggle, hãy cập nhật nó
-const KAGGLE_API_URL = "https://5fa6e9937ff9.ngrok-free.app"; // <--- URL NGROK TỪ KAGGLE
+const KAGGLE_API_URL = "https://6a9125141ac5.ngrok-free.app"; // <--- URL NGROK TỪ KAGGLE
 
 const httpsAgent = new https.Agent({ keepAlive: true });
 
@@ -873,3 +857,4 @@ exports.generateMegaVideo = async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 };
+

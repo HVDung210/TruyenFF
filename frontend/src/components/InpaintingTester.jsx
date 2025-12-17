@@ -79,17 +79,13 @@ const InpaintingTester = ({ files, analysisResults, updateAnalysisResult }) => {
 
   return (
     <div className="pt-6 bg-slate-900 text-gray-200">
-      <h2 className="text-xl font-bold mb-4 text-blue-400 pt-6">Bước 5: Xóa Bong Bóng (Inpainting)</h2>
+      <h2 className="text-xl font-bold mb-4 text-blue-400 pt-6">Bước 6: Xóa Bong Bóng (Inpainting)</h2>
 
       <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
         <p className="text-gray-300 mb-4">
           {isReady ? (
             <span className="text-green-400 block">
               Đã sẵn sàng. (Có {analysisResults.length} file với `cropData`)
-              <br />
-              <span className="text-sm text-gray-400">
-                 YOLO sẽ tự động phát hiện bubble, không cần Text Detection
-              </span>
             </span>
           ) : (
              <span className="text-yellow-400 block">
