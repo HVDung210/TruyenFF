@@ -277,24 +277,37 @@ const VideoGeneratorTester = ({
   // --- HÀM 8.5: GHÉP TOÀN BỘ ---
   const handleGenerateMega = async () => {
     if (!finalVideos || finalVideos.length === 0) return;
-    setLoadingMega(true);
-    setError('');
+    setLoadingMega(true); setError('');
 
     try {
+        // 🔥 SỬA ĐỔI QUAN TRỌNG:
+        // Backend 'mergeFinalVideo' cần danh sách đường dẫn (videoPaths)
+        // chứ không phải toàn bộ object finalVideos.
+        
+        const videoPaths = finalVideos
+            .map(v => v.fullPath || v.finalUrl) // Ưu tiên lấy đường dẫn tuyệt đối nếu có
+            .filter(Boolean);
+
+        // Gọi API ghép video chung (dùng lại hàm mergeFinalVideo đã viết)
         const res = await fetch(`${API_BASE_URL}/api/comic/video/generate-mega`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ finalVideos: finalVideos }),
+            body: JSON.stringify({ videoPaths: videoPaths }), // <-- Gửi đúng format
         });
 
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
 
-        setMegaVideo(data.data);
-        alert("Đã tạo video Full Chapter thành công!");
+        // data trả về { success, url, fullPath }
+        setMegaVideo({
+            fileName: "FULL_CHAPTER_MOVIE.mp4",
+            finalUrl: `${API_BASE_URL}${data.url}` // Gắn thêm domain vào
+        });
+
+        alert("🎉 CHÚC MỪNG! Đã xuất bản Video Full Chapter!");
 
     } catch (err) {
-        setError(err.message);
+        setError("Lỗi ghép Mega: " + err.message);
     } finally {
         setLoadingMega(false);
     }
@@ -470,29 +483,28 @@ const VideoGeneratorTester = ({
         </div>
       )}
 
-      {/* --- BƯỚC 8.5: GHÉP TOÀN BỘ CHAPTER (FINAL CỦA FINAL) --- */}
+      {/* --- Bước 8.5: Mega Final --- */}
       {finalVideos.length > 0 && (
-        <div className="mt-8 border-t-2 border-orange-600 pt-8 pb-12 text-center">
-            <h3 className="text-3xl font-extrabold text-orange-500 mb-4 animate-pulse">BƯỚC 8.5: FINAL CHAPTER</h3>
-            <p className="text-gray-300 mb-6">Nối tất cả các video.</p>
+        <div className="mt-8 border-t-2 border-slate-700 pt-8 text-center pb-20">
+            <h3 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-600 mb-6 animate-pulse">
+                FINAL CHAPTER MOVIE
+            </h3>
             
             <button onClick={handleGenerateMega} disabled={loadingMega}
-                className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-4 px-12 rounded-full text-xl shadow-2xl disabled:bg-gray-600 transition-transform transform hover:scale-105">
-                {loadingMega ? 'Đang ghép...' : 'XUẤT'}
+                className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-bold py-4 px-12 rounded-full text-xl shadow-[0_0_20px_rgba(234,88,12,0.5)] disabled:opacity-50 transition-all transform hover:scale-105">
+                {loadingMega ? 'Đang ghép...' : 'XUẤT BẢN FULL'}
             </button>
 
-            {/* VIDEO KẾT QUẢ */}
             {megaVideo && (
-                <div className="mt-8 max-w-4xl mx-auto bg-black rounded-xl overflow-hidden shadow-[0_0_50px_rgba(234,88,12,0.3)] border border-orange-500/50">
-                    <div className="bg-slate-900/80 p-2 text-orange-400 font-bold border-b border-slate-700">
-                        {megaVideo.fileName}
-                    </div>
-                    <video controls autoPlay className="w-full" src={megaVideo.finalUrl} />
-                    <div className="p-4 bg-slate-900 text-center">
-                        <a href={megaVideo.finalUrl} download className="inline-block bg-white text-orange-600 font-bold px-8 py-3 rounded-full hover:bg-gray-200 transition-colors">
-                          TẢI VIDEO VỀ MÁY
+                <div className="mt-10 max-w-5xl mx-auto bg-black rounded-2xl overflow-hidden border border-orange-500/50 shadow-2xl">
+                    <div className="bg-slate-900 px-4 py-3 flex justify-between items-center border-b border-slate-800">
+                        <span className="font-bold text-orange-400">{megaVideo.fileName}</span>
+                        <a href={megaVideo.finalUrl} download 
+                           className="bg-white text-orange-600 text-xs font-bold px-3 py-1 rounded hover:bg-gray-200">
+                           DOWNLOAD
                         </a>
                     </div>
+                    <video controls autoPlay className="w-full aspect-video" src={megaVideo.finalUrl} />
                 </div>
             )}
         </div>

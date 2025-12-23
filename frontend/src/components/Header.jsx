@@ -172,6 +172,7 @@ export default function Header() {
             <Link to="/lich-su" className="hover:bg-orange-300 text-md px-3 py-1 rounded">Lịch Sử</Link>
             <Link to="/theo-doi" className="hover:bg-orange-300 text-md px-3 py-1 rounded">Theo Dõi</Link>
             <Link to="/tim-mo-ta" className="hover:bg-orange-300 text-md px-3 py-1 rounded">Tìm Mô Tả</Link>
+            
           </div>
         </div>
       </nav>

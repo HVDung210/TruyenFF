@@ -79,7 +79,7 @@ const InpaintingTester = ({ files, analysisResults, updateAnalysisResult }) => {
 
   return (
     <div className="pt-6 bg-slate-900 text-gray-200">
-      <h2 className="text-xl font-bold mb-4 text-blue-400 pt-6">Bước 6: Xóa Bong Bóng (Inpainting)</h2>
+      <h2 className="text-xl font-bold mb-4 text-blue-400 pt-6">Bước 7: Xóa Bong Bóng (Inpainting)</h2>
 
       <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
         <p className="text-gray-300 mb-4">

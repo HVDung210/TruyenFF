@@ -11,6 +11,8 @@
 // import './index.css';
 // import FindByDescriptionPage from "./pages/FindByDescriptionPage";
 // import QueryProvider from './providers/QueryProvider';
+// import ComicAnalysisDashboard from "./components/ComicAnalysisDashboard";
+// import NovelToComicTester from "./components/NovelToComicTester";
 
 
 // function App() {
@@ -33,6 +35,19 @@
 //         </div>
 //       </Router>
 //     </QueryProvider>
+//   );
+// }
+
+// export default App;
+
+// import React from 'react';
+// import NovelToComicTester from './components/NovelToComicTester';
+
+// function App() {
+//   return (
+//     <div className="App">
+//       <NovelToComicTester />
+//     </div>
 //   );
 // }
 

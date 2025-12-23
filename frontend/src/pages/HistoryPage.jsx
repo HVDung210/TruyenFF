@@ -48,13 +48,15 @@ export default function HistoryPage() {
                   )}
             <span className="text-xl font-bold text-red-500">Lịch Sử Đọc Truyện</span>
             <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                {stories.map((story) => (
-                  <div 
-                    key={story.id}
-                    className="transform transition-transform duration-200 hover:scale-105"
-                  >
-                    <StoryCard story={story} onStoryClick={handleStoryHover} />
-                  </div>
+                {stories
+                  .filter((story) => story.id % 2 !== 0) 
+                  .map((story) => (
+                    <div 
+                      key={story.id}
+                      className="transform transition-transform duration-200 hover:scale-105"
+                    >
+                      <StoryCard story={story} onStoryClick={handleStoryHover} />
+                    </div>
                 ))}
             </div>
         </div>

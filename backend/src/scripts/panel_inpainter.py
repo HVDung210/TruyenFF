@@ -90,7 +90,7 @@ def expand_contour_with_offset(contour, offset_px=10):
 def get_bubble_mask_yolo(image_bgr, model):
     h, w = image_bgr.shape[:2]
     final_mask = np.zeros((h, w), dtype=np.uint8)
-    offset_px = 20
+    offset_px = 35
 
     results = model.predict(image_bgr, conf=0.2, iou=0.4, retina_masks=True, verbose=False)
     

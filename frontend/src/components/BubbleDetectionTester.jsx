@@ -46,7 +46,7 @@ const BubbleDetectionTester = ({ files, analysisResults, updateAnalysisResult })
 
   return (
     <div className="pt-6 bg-slate-900 min-h-screen text-gray-200">
-      <h2 className="text-xl font-bold mb-4 text-blue-400 pt-6">Bước 5: Kiểm tra Bong Bóng (Trên Panel)</h2>
+      <h2 className="text-xl font-bold mb-4 text-blue-400 pt-6">Bước 6: Kiểm tra Bong Bóng (Trên Panel)</h2>
       
       <div className="bg-slate-800 p-4 mb-6 rounded-xl border border-slate-700">
         <button onClick={handleDetectBubbles} disabled={loading || !readyToDetect}

@@ -1,6 +1,6 @@
 const { getGeminiModel } = require('../config/gemini');
 
-async function retryGeminiRequest(prompt, maxRetries = 3, delay = 5000, modelName = 'gemini-1.5-flash') {
+async function retryGeminiRequest(prompt, maxRetries = 3, delay = 5000, modelName = 'gemini-2.0-flash') {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const model = getGeminiModel(modelName);

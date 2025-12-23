@@ -38,7 +38,7 @@ LƯU Ý:
 - Chỉ trả về JSON, không giải thích gì thêm
 `;
 
-  const model = getGeminiModel('gemini-1.5-flash');
+  const model = getGeminiModel('gemini-2.0-flash');
   const baseResult = await model.generateContent(basePrompt);
   const baseResponse = await baseResult.response;
   const baseText = baseResponse.text();
@@ -51,7 +51,7 @@ LƯU Ý:
 
   if (Object.keys(images).length === 0) return characterRefs;
 
-  const visionModel = getGeminiModel('gemini-1.5-flash');
+  const visionModel = getGeminiModel('gemini-2.0-flash');
   for (const [charName, imageData] of Object.entries(images)) {
     if (!characterRefs[charName]) continue;
     const visionPrompt = `

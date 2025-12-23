@@ -37,7 +37,7 @@ async function llmSearch(query) {
       ).join('\n\n')}
       `;
 
-  const model = getGeminiModel('gemini-1.5-flash');
+  const model = getGeminiModel('gemini-2.0-flash');
   const result = await model.generateContent(prompt);
   const response = await result.response;
 

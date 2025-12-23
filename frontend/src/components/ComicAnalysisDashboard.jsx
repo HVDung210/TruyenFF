@@ -25,11 +25,10 @@ const ComicAnalysisDashboard = () => {
     { id: 'editor', label: '2. Panel Editor', component: PanelEditorTester },
     { id: 'crop', label: '3. Panel Cropper', component: PanelCropperTester },
     { id: 'text', label: '4. Text Detection', component: TextDetectionTester },
-    { id: 'bubble', label: '5. Bubble Detection', component: BubbleDetectionTester },
-    { id: 'inpainting', label: '6. Inpainting', component: InpaintingTester },
-    { id: 'text-editor', label: '7. Text Editor', component: TextEditorTester }, 
+    { id: 'text-editor', label: '5. Text Editor', component: TextEditorTester },
+    { id: 'bubble', label: '6. Bubble Detection', component: BubbleDetectionTester },
+    { id: 'inpainting', label: '7. Inpainting', component: InpaintingTester },
     { id: 'video', label: '8. Video Generation', component: VideoGeneratorTester }
-    
   ];
 
   const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component || PanelDetectionTester;

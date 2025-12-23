@@ -1,294 +1,399 @@
-const { HF_API_TOKEN, HF_MODEL } = require('../config/env');
+const { generateImageStability } = require('./stabilityService');
 const { retryGeminiRequest } = require('../utils/retryGemini');
 
-async function callHuggingFace(inputs, parameters) {
-  const HF_API_URL = `https://api-inference.huggingface.co/models/${HF_MODEL}`;
-  if (!HF_API_TOKEN) throw new Error('Thiếu Hugging Face API token');
-  console.log('[HF] Requesting model:', HF_MODEL);
-  console.log('[HF] Inputs length:', inputs?.length || 0);
-  console.log('[HF] Parameters:', parameters);
-  const hfResponse = await fetch(HF_API_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${HF_API_TOKEN}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ inputs, parameters })
-  });
-  if (!hfResponse.ok) {
-    if (hfResponse.status === 503) return { modelLoading: true };
-    const errText = await hfResponse.text();
-    console.error('[HF] Error:', hfResponse.status, errText?.slice(0, 500));
-    throw new Error(`HuggingFace API error: ${hfResponse.status} ${errText}`);
+const MAX_PANELS = parseInt(process.env.MAX_PANELS || '8');
+
+// Helper function: Dịch text sang tiếng Anh
+async function translateToEnglish(vietnameseText) {
+  try {
+    const translatePrompt = `Translate this Vietnamese text to English (keep it concise for image generation):
+"${vietnameseText}"
+
+Response format: Just the English translation, no explanations.`;
+    
+    const translation = await retryGeminiRequest(translatePrompt);
+    return translation.trim().replace(/['"]/g, '');
+  } catch (e) {
+    console.warn('[Translate] Failed, using original:', e.message);
+    return vietnameseText;
   }
-  console.log('[HF] Response OK');
-  const imageBlob = await hfResponse.blob();
-  const imageBuffer = Buffer.from(await imageBlob.arrayBuffer());
-  const base64Image = imageBuffer.toString('base64');
-  const imageDataUrl = `data:image/png;base64,${base64Image}`;
+}
+
+async function callStabilityAPI(inputs, parameters) {
+  console.log('\n=== STABILITY AI CALL ===');
+  console.log('[Stability] Inputs length:', inputs?.length || 0);
+  console.log('[Stability] Parameters:', JSON.stringify(parameters, null, 2));
+  
+  const imageDataUrl = await generateImageStability(inputs, parameters);
+  
+  console.log('=============================\n');
   return { imageDataUrl };
 }
 
 async function generateImages(panels, storyContext, styleReference) {
+  const limitedPanels = panels.slice(0, MAX_PANELS);
+  
+  if (panels.length > MAX_PANELS) {
+    console.log(`\n⚠️  LIMIT: Processing ${MAX_PANELS}/${panels.length} panels to save credits\n`);
+  }
+  
   const generatedPanels = [];
   let successfulGenerations = 0;
 
-  for (let i = 0; i < panels.length; i++) {
-    const panel = panels[i];
-    console.log(`Processing panel ${panel.panel_id} (${i + 1}/${panels.length})`);
+  for (let i = 0; i < limitedPanels.length; i++) {
+    const panel = limitedPanels[i];
+    console.log(`\nProcessing panel ${panel.panel_id} (${i + 1}/${limitedPanels.length})`);
+
+    // Dịch tất cả text sang tiếng Anh
+    const englishSetting = await translateToEnglish(panel.setting);
+    const englishAction = await translateToEnglish(panel.action);
+    const englishVisual = await translateToEnglish(panel.visual_description);
+    const englishContext = await translateToEnglish(storyContext || 'Ancient Chinese wuxia world');
+    
+    console.log('[Translation] Setting:', englishSetting);
+    console.log('[Translation] Action:', englishAction);
+
     let responseText;
     let imageData = {};
+
     try {
       const imagePrompt = `
-Tạo mô tả chi tiết để sinh hình ảnh panel truyện tranh:
+Create MANHUA (Chinese webcomic) style illustration with these requirements:
 
 Panel ${panel.panel_id}:
-- Bối cảnh: ${panel.setting}
-- Nhân vật: ${panel.characters.join(', ')}
-- Hành động: ${panel.action}
-- Góc quay: ${panel.camera_angle}
-- Cảm xúc: ${panel.dialogue?.emotion || 'neutral'}
-- Mô tả hình ảnh: ${panel.visual_description}
+- Setting: ${englishSetting}
+- Characters: ${panel.characters.join(', ')}
+- Action: ${englishAction}
+- Camera: ${panel.camera_angle}
+- Emotion: ${panel.dialogue?.emotion || 'neutral'}
+- Visual: ${englishVisual}
 
-Style reference: ${styleReference || 'Manga/manhwa style, full color, vibrant colors, detailed art'}
-Story context: ${storyContext || 'Ancient Chinese setting, martial arts theme'}
+MANHUA STYLE MANDATORY:
+1. Art: Chinese webcomic (Tales of Demons and Gods, Battle Through the Heavens style)
+2. Characters: Semi-realistic Asian faces, elegant sharp features, long flowing hair
+3. Clothing: Traditional Chinese hanfu robes with intricate patterns, jade ornaments
+4. Colors: Rich vibrant - crimson red, imperial gold, jade green, deep blue
+5. Lighting: Dramatic cinematic with strong contrast, glowing qi energy effects
+6. Background: Ancient Chinese architecture (pagodas, temples), misty mountains
+7. Effects: Martial arts energy auras, glowing weapons, motion blur, speed lines
+8. Composition: Cinematic ${panel.camera_angle}, dramatic perspective
 
-Tạo prompt để sinh hình ảnh theo format:
+Context: ${englishContext}
+Reference: ${styleReference || 'Chinese cultivation manhua - Tales of Demons and Gods'}
+
+JSON (ENGLISH ONLY):
 {
-  "image_prompt": "detailed prompt for AI image generation",
-  "negative_prompt": "things to avoid in the image",
-  "style_tags": ["tag1", "tag2", "tag3"],
-  "composition": "description of panel composition"
-}`;
+  "image_prompt": "Manhua/Chinese webcomic style: [detailed scene], professional Chinese digital art, trending on Bilibili Comics",
+  "negative_prompt": "Western, Japanese anime/manga, Korean manhwa, modern clothing, photorealistic, 3D render, realistic photo, contemporary, Japanese kimono, Korean hanbok, modern city, technology",
+  "style_tags": ["manhua", "chinese webcomic", "cultivation", "wuxia", "xianxia"],
+  "composition": "cinematic ${panel.camera_angle}"
+}
+
+CRITICAL: Pure English, Chinese manhua style ONLY!`;
+
       responseText = await retryGeminiRequest(imagePrompt);
-      console.log('[Gemini] prompt length:', imagePrompt.length);
-      console.log('[Gemini] response length:', responseText?.length || 0);
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (jsonMatch) imageData = JSON.parse(jsonMatch[0]);
     } catch (e) {
-      console.warn('[Gemini] Failed, using fallback prompt:', e.message);
+      console.warn('[Gemini] Failed, hardcore English fallback:', e.message);
+      
+      const manhuaKeywords = [
+        'Chinese manhua webcomic style',
+        'Tales of Demons and Gods art style',
+        'Battle Through the Heavens aesthetic',
+        'cultivation fantasy illustration',
+        englishSetting,
+        `characters: ${panel.characters.join(', ')}`,
+        englishAction,
+        englishVisual,
+        'ancient Chinese wuxia setting',
+        'traditional hanfu robes intricate embroidery',
+        'long flowing black hair',
+        'martial arts qi energy aura glowing',
+        'ancient Chinese pagoda temple architecture',
+        'misty mountains bamboo forest',
+        'dramatic cinematic lighting shadows',
+        'rich vibrant colors crimson red gold jade green',
+        'semi-realistic Asian facial features elegant',
+        'dynamic martial arts action pose',
+        `${panel.camera_angle} camera angle`,
+        'professional Chinese digital art',
+        'trending Bilibili Comics Tencent'
+      ];
+      
       imageData = {
-        image_prompt: `${panel.visual_description}, ${panel.setting}, characters: ${panel.characters.join(', ')}, ${panel.action}, ${panel.camera_angle} angle, manga style, full color, detailed line art`,
-        negative_prompt: 'blurry, low quality, distorted, text, watermark, realistic photo',
-        style_tags: ['manga', 'full color', 'detailed', 'vibrant colors', 'comic_style'],
-        composition: panel.camera_angle,
+        image_prompt: manhuaKeywords.join(', '),
+        negative_prompt: 'Western comic, American cartoon, Japanese anime, Japanese manga, Korean manhwa, modern clothing, contemporary fashion, realistic photo, photorealistic, 3D render, modern city, technology, buildings, cars, phones, computers, Japanese kimono, Korean hanbok, chibi, cute, simple lineart, black white, monochrome, sketch, low quality, blurry, distorted, ugly, deformed, bad anatomy, poorly drawn hands, text, watermark',
+        style_tags: ['manhua', 'chinese webcomic', 'cultivation', 'wuxia', 'xianxia', 'martial arts', 'traditional chinese', 'ancient china'],
+        composition: `${panel.camera_angle} cinematic manhua`,
       };
     }
 
-    const finalPrompt = imageData.image_prompt || panel.visual_description;
-    const negativePrompt = imageData.negative_prompt || 'blurry, low quality, distorted, text, watermark';
-    console.log(`[GEN] Panel ${panel.panel_id} prompt len=${finalPrompt.length}, neg len=${negativePrompt.length}`);
+    let finalPrompt = imageData.image_prompt || '';
+    
+    // Double-check: Remove any remaining Vietnamese
+    if (/[àáảãạăắằẳẵặâấầẩẫậđèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵ]/i.test(finalPrompt)) {
+      console.warn('[WARNING] Vietnamese detected in prompt, translating...');
+      finalPrompt = await translateToEnglish(finalPrompt);
+    }
+    
+    // Enforce manhua style
+    if (!finalPrompt.toLowerCase().includes('manhua') && !finalPrompt.toLowerCase().includes('chinese')) {
+      finalPrompt = `Chinese manhua webcomic style, Tales of Demons and Gods art, ${finalPrompt}`;
+    }
+    
+    if (!finalPrompt.includes('professional') && !finalPrompt.includes('digital art')) {
+      finalPrompt += ', professional Chinese manhua digital art, Bilibili Comics';
+    }
+    
+    const negativePrompt = imageData.negative_prompt || 
+      'Japanese anime, manga, Korean manhwa, Western comic, modern, photorealistic, 3D render';
+    
+    console.log(`[Final Prompt] ${finalPrompt.substring(0, 150)}...`);
 
     let imageGenerated = false;
-    let hfAttempts = 0;
-    const maxHfAttempts = 3;
-    while (!imageGenerated && hfAttempts < maxHfAttempts) {
-      hfAttempts++;
+    let attempts = 0;
+    const maxAttempts = 3;
+
+    while (!imageGenerated && attempts < maxAttempts) {
+      attempts++;
+      console.log(`[Stability] Attempt ${attempts}/${maxAttempts}`);
+
       try {
-        const result = await callHuggingFace(finalPrompt, {
+        const result = await callStabilityAPI(finalPrompt, {
           negative_prompt: negativePrompt,
-          num_inference_steps: 20,
-          guidance_scale: 7.5,
           width: 512,
           height: 768,
-          seed: panel.panel_id || Math.floor(Math.random() * 1000000),
+          seed: panel.panel_id * 1000 + i,
         });
-        if (result.modelLoading) {
-          console.log(`[HF] Model loading (503) for panel ${panel.panel_id}, attempt ${hfAttempts}/${maxHfAttempts}`);
-          if (hfAttempts < maxHfAttempts) await new Promise(r => setTimeout(r, 20000));
-        } else {
+
+        generatedPanels.push({
+          ...panel,
+          image_generation: {
+            prompt: finalPrompt,
+            negative_prompt: negativePrompt,
+            style_tags: imageData.style_tags,
+            composition: imageData.composition,
+            status: 'generated',
+            image_data: result.imageDataUrl,
+            api_used: 'stability_ai_ultra_manhua',
+            attempts: attempts,
+            gemini_used: !!responseText,
+            translated: true,
+          },
+        });
+
+        successfulGenerations++;
+        imageGenerated = true;
+        console.log(`✅ Panel ${panel.panel_id} - MANHUA generated`);
+
+      } catch (error) {
+        console.error(`[Stability] Failed:`, error.message);
+        
+        if (error.message.includes('402')) {
+          console.error(`\n❌ OUT OF CREDITS\n`);
+          return {
+            generatedPanels,
+            successfulGenerations,
+            stoppedEarly: true,
+            reason: 'out_of_credits'
+          };
+        }
+        
+        if (attempts >= maxAttempts) {
           generatedPanels.push({
             ...panel,
             image_generation: {
               prompt: finalPrompt,
-              negative_prompt: negativePrompt,
-              style_tags: imageData.style_tags || ['manga', 'full color', 'detailed'],
-              composition: imageData.composition || panel.camera_angle,
-              status: 'generated',
-              image_data: result.imageDataUrl,
-              api_used: 'huggingface',
-              attempts: hfAttempts,
-              gemini_used: !!responseText,
-            },
+              status: 'failed',
+              error: error.message,
+            }
           });
-          successfulGenerations++;
-          imageGenerated = true;
-          console.log(`✓ Panel ${panel.panel_id} generated successfully (attempt ${hfAttempts})`);
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 2000));
         }
-      } catch (hfError) {
-        console.error(`[HF] Attempt ${hfAttempts} failed for panel ${panel.panel_id}:`, hfError.message);
-        if (hfAttempts >= maxHfAttempts) break;
       }
     }
-    if (!imageGenerated) {
-      generatedPanels.push({
-        ...panel,
-        image_generation: {
-          prompt: finalPrompt,
-          negative_prompt: negativePrompt,
-          style_tags: imageData.style_tags || ['manga'],
-          composition: imageData.composition || panel.camera_angle,
-          status: 'failed',
-          error: 'Failed after multiple attempts',
-          api_used: 'huggingface',
-          attempts: hfAttempts,
-          gemini_used: !!responseText,
-        }
-      });
-    }
-    if (i < panels.length - 1) {
-      console.log('Waiting 3s before next panel...');
-      await new Promise(r => setTimeout(r, 3000));
+
+    if (i < limitedPanels.length - 1) {
+      console.log('Waiting 3s...');
+      await new Promise(resolve => setTimeout(resolve, 3000));
     }
   }
-  console.log('\n=== SINH HÌNH ẢNH PANELS - SUMMARY ===');
-  console.log('Số panels xử lý:', generatedPanels.length);
-  console.log('Panels thành công:', successfulGenerations);
-  console.log('Panels thất bại:', generatedPanels.length - successfulGenerations);
-  console.log('Tỷ lệ thành công:', `${Math.round((successfulGenerations / generatedPanels.length) * 100)}%`);
-  console.log('=====================================\n');
+
+  console.log('\n=== MANHUA GENERATION SUMMARY ===');
+  console.log('Processed:', generatedPanels.length);
+  console.log('Success:', successfulGenerations);
+  console.log('Style: MANHUA (Chinese Webcomic)');
+  console.log('=================================\n');
+
   return {
     generatedPanels,
     successfulGenerations,
+    totalPanels: panels.length,
+    limitedTo: limitedPanels.length
   };
 }
 
 async function generateImagesConsistent(panels, storyContext, styleReference, characterReferences) {
+  const limitedPanels = panels.slice(0, MAX_PANELS);
   const generatedPanels = [];
   let successfulGenerations = 0;
-  for (let i = 0; i < panels.length; i++) {
-    const panel = panels[i];
-    console.log(`Processing panel ${panel.panel_id} (${i + 1}/${panels.length})`);
+
+  for (let i = 0; i < limitedPanels.length; i++) {
+    const panel = limitedPanels[i];
+    console.log(`\nPanel ${panel.panel_id} (${i + 1}/${limitedPanels.length})`);
+
+    // Translate ALL Vietnamese to English
+    const englishSetting = await translateToEnglish(panel.setting);
+    const englishAction = await translateToEnglish(panel.action);
+    const englishVisual = await translateToEnglish(panel.visual_description);
+
     let characterDescriptions = [];
     if (panel.characters && panel.characters.length > 0) {
       for (const charName of panel.characters) {
         const charRef = characterReferences.character_references?.[charName];
         if (charRef) {
-          const charDesc = `${charName}: ${charRef.physical_description}, ${charRef.hair}, ${charRef.eyes}, ${charRef.clothing}, ${charRef.distinctive_features}`;
-          characterDescriptions.push(charDesc);
+          // Dịch TẤT CẢ character fields
+          const englishPhysical = await translateToEnglish(charRef.physical_description || 'elegant features');
+          const englishHair = await translateToEnglish(charRef.hair || 'long flowing black hair');
+          const englishEyes = await translateToEnglish(charRef.eyes || 'sharp eyes');
+          const englishClothing = await translateToEnglish(charRef.clothing || 'traditional Chinese hanfu');
+          const englishFeatures = await translateToEnglish(charRef.distinctive_features || 'refined appearance');
+          
+          characterDescriptions.push(
+            `${charName} CONSISTENT CHARACTER: ${englishPhysical}, ` +
+            `hair: ${englishHair} (long flowing Chinese style), ` +
+            `eyes: ${englishEyes} (elegant Asian features), ` +
+            `clothing: ${englishClothing} (traditional Chinese hanfu robes), ` +
+            `distinctive: ${englishFeatures}, ` +
+            `manhua semi-realistic style, maintain exact same appearance`
+          );
         }
       }
     }
-    const consistentPrompt = `
-Panel ${panel.panel_id} - ${panel.scene_type}:
 
-NHÂN VẬT (QUAN TRỌNG - giữ nguyên ngoại hình):
-${characterDescriptions.join('\n')}
+    console.log('[Character Descriptions]:', characterDescriptions);
 
-CẢNH:
-- Bối cảnh: ${panel.setting}
-- Hành động: ${panel.action}
-- Góc quay: ${panel.camera_angle}
-- Cảm xúc: ${panel.dialogue?.emotion || 'neutral'}
-- Mô tả hình ảnh: ${panel.visual_description}
+    const manhuaConsistentKeywords = [
+      'Chinese manhua webcomic style illustration',
+      'Tales of Demons and Gods character art style',
+      'Battle Through the Heavens aesthetic',
+      'STRICT CHARACTER CONSISTENCY',
+      ...characterDescriptions,
+      `setting: ${englishSetting} (ancient Chinese architecture, pagodas, temples)`,
+      `action: ${englishAction} (martial arts wuxia movements, qi energy)`,
+      englishVisual,
+      'traditional Chinese hanfu robes with flowing fabric and intricate embroidery',
+      'martial arts qi energy effects with glowing golden aura',
+      'long flowing black hair with elegant movement',
+      'semi-realistic Asian facial features with refined elegant look',
+      `${panel.camera_angle} cinematic camera angle with dramatic perspective`,
+      'rich vibrant colors: crimson red, imperial gold, jade green, deep blue',
+      'dramatic atmospheric lighting with strong contrast and shadows',
+      'professional Chinese digital art manhua webcomic style',
+      'maintain exact character consistency across all panels',
+      'semi-realistic body proportions with elegant Asian aesthetic',
+      'trending on Bilibili Comics and Tencent Comics platform',
+      'cultivation fantasy martial arts theme'
+    ];
 
-STYLE: ${styleReference || 'Manga/manhwa style, full color, vibrant colors, detailed art'}
-CONTEXT: ${storyContext || 'Ancient Chinese setting, martial arts theme'}
-
-Yêu cầu tạo prompt để sinh hình ảnh nhất quán:
-{
-  "image_prompt": "detailed prompt với character consistency",
-  "negative_prompt": "things to avoid",
-  "character_consistency_tags": ["tag cho từng nhân vật"],
-  "composition": "mô tả composition"
-}`;
-    let responseText;
-    let imageData = {};
-    try {
-      responseText = await retryGeminiRequest(consistentPrompt);
-      console.log('[Gemini][consistent] prompt length:', consistentPrompt.length);
-      console.log('[Gemini][consistent] response length:', responseText?.length || 0);
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) imageData = JSON.parse(jsonMatch[0]);
-    } catch (e) {
-      console.warn('[Gemini][consistent] Failed, using fallback prompt:', e.message);
-      const charTags = characterDescriptions.length > 0 ? characterDescriptions.join(', ') : `characters: ${panel.characters.join(', ')}`;
-      imageData = {
-        image_prompt: `${panel.visual_description}, ${panel.setting}, ${charTags}, ${panel.action}, ${panel.camera_angle} angle, manga style, full color, detailed line art, consistent character design`,
-        negative_prompt: 'blurry, low quality, distorted, text, watermark, realistic photo, inconsistent character design, different face, different hair',
-        character_consistency_tags: panel.characters.map(char => {
-          const ref = characterReferences.character_references?.[char];
-          return ref ? ref.consistent_tags : char;
-        }).filter(Boolean),
-        composition: panel.camera_angle,
-      };
+    let finalPrompt = manhuaConsistentKeywords.join(', ');
+    
+    // Final Vietnamese check
+    if (/[àáảãạăắằẳẵặâấầẩẫậđèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵ]/i.test(finalPrompt)) {
+      console.error('[ERROR] Vietnamese still detected! Translating entire prompt...');
+      finalPrompt = await translateToEnglish(finalPrompt);
     }
-    const enhancedNegativePrompt = `${imageData.negative_prompt || 'blurry, low quality, distorted'}, inconsistent character design, different facial features, different hair color, different eye color, character inconsistency, multiple versions of same character`;
-    let finalPrompt = imageData.image_prompt || panel.visual_description;
-    if (imageData.character_consistency_tags && imageData.character_consistency_tags.length > 0) {
-      finalPrompt += `, CONSISTENT CHARACTERS: ${imageData.character_consistency_tags.join(', ')}`;
-    }
+    
+    console.log(`[Final Prompt Length]: ${finalPrompt.length}`);
+    console.log(`[Final Prompt Preview]: ${finalPrompt.substring(0, 200)}...`);
+    
+    const negativePrompt = 'Japanese anime style, Japanese manga, Korean manhwa, Western comic style, modern contemporary style, different character appearance, inconsistent character features, different facial structure, different hair style, different hair color, different eye color, different clothing, photorealistic photo, 3D render, realistic render, chibi style, cute anime style, modern clothing, contemporary fashion, modern city, technology devices, low quality, blurry image, distorted, ugly, deformed, bad anatomy, poorly drawn';
+
+    let attempts = 0;
     let imageGenerated = false;
-    let hfAttempts = 0;
-    const maxHfAttempts = 3;
-    while (!imageGenerated && hfAttempts < maxHfAttempts) {
-      hfAttempts++;
+
+    while (!imageGenerated && attempts < 3) {
+      attempts++;
+      console.log(`[Stability] Manhua consistent attempt ${attempts}/3`);
+      
       try {
-        const result = await callHuggingFace(finalPrompt, {
-          negative_prompt: enhancedNegativePrompt,
-          num_inference_steps: 25,
-          guidance_scale: 8.0,
+        const result = await callStabilityAPI(finalPrompt, {
+          negative_prompt: negativePrompt,
           width: 512,
           height: 768,
-          seed: Math.floor(Math.random() * 1000000),
+          seed: Math.floor(Math.random() * 4294967295),
         });
-        if (result.modelLoading) {
-          console.log(`[HF] Model loading (503) for panel ${panel.panel_id}, attempt ${hfAttempts}/${maxHfAttempts}`);
-          if (hfAttempts < maxHfAttempts) await new Promise(r => setTimeout(r, 20000));
-        } else {
+
+        generatedPanels.push({
+          ...panel,
+          image_generation: {
+            prompt: finalPrompt,
+            negative_prompt: negativePrompt,
+            status: 'generated',
+            image_data: result.imageDataUrl,
+            api_used: 'stability_ai_ultra_manhua_consistent',
+            attempts: attempts,
+            character_descriptions: characterDescriptions,
+            style: 'manhua_consistent',
+            translated: true,
+          }
+        });
+
+        successfulGenerations++;
+        imageGenerated = true;
+        console.log(`✅ Panel ${panel.panel_id} - MANHUA consistent generated`);
+
+      } catch (error) {
+        console.error(`[Stability] Failed:`, error.message);
+        
+        if (error.message.includes('402')) {
+          console.error('\n❌ OUT OF CREDITS\n');
+          return { 
+            generatedPanels, 
+            successfulGenerations, 
+            stoppedEarly: true,
+            reason: 'out_of_credits'
+          };
+        }
+        
+        if (attempts >= 3) {
           generatedPanels.push({
             ...panel,
-            image_generation: {
-              prompt: finalPrompt,
-              negative_prompt: enhancedNegativePrompt,
-              character_consistency_tags: imageData.character_consistency_tags || [],
-              composition: imageData.composition || panel.camera_angle,
-              status: 'generated',
-              image_data: result.imageDataUrl,
-              api_used: 'huggingface_consistent',
-              attempts: hfAttempts,
-              gemini_used: !!responseText,
-              character_descriptions: characterDescriptions,
+            image_generation: { 
+              status: 'failed', 
+              error: error.message,
+              prompt: finalPrompt
             }
           });
-          successfulGenerations++;
-          imageGenerated = true;
-          console.log(`✓ Panel ${panel.panel_id} generated with character consistency (attempt ${hfAttempts})`);
+        } else {
+          console.log(`Waiting 3s before retry...`);
+          await new Promise(resolve => setTimeout(resolve, 3000));
         }
-      } catch (hfError) {
-        console.error(`[HF] Attempt ${hfAttempts} failed for panel ${panel.panel_id}:`, hfError.message);
-        if (hfAttempts >= maxHfAttempts) break;
       }
     }
-    if (!imageGenerated) {
-      generatedPanels.push({
-        ...panel,
-        image_generation: {
-          prompt: finalPrompt,
-          negative_prompt: enhancedNegativePrompt,
-          character_consistency_tags: imageData.character_consistency_tags || [],
-          composition: imageData.composition || panel.camera_angle,
-          status: 'failed',
-          error: 'Failed after multiple attempts',
-          api_used: 'huggingface_consistent',
-          attempts: hfAttempts,
-          gemini_used: !!responseText,
-        }
-      });
-    }
-    if (i < panels.length - 1) {
+
+    if (i < limitedPanels.length - 1) {
       console.log('Waiting 3s before next panel...');
-      await new Promise(r => setTimeout(r, 3000));
+      await new Promise(resolve => setTimeout(resolve, 3000));
     }
   }
-  console.log('\n=== SINH HÌNH ẢNH VỚI CHARACTER CONSISTENCY ===');
-  console.log('Số panels xử lý:', generatedPanels.length);
-  console.log('Panels thành công:', successfulGenerations);
-  console.log('Tỷ lệ thành công:', `${Math.round((successfulGenerations / generatedPanels.length) * 100)}%`);
-  console.log('================================================\n');
-  return { generatedPanels, successfulGenerations };
+
+  console.log('\n=== MANHUA CHARACTER CONSISTENCY SUMMARY ===');
+  console.log('Processed:', generatedPanels.length);
+  console.log('Success:', successfulGenerations);
+  console.log('Failed:', generatedPanels.length - successfulGenerations);
+  console.log('Success rate:', `${Math.round((successfulGenerations / generatedPanels.length) * 100)}%`);
+  console.log('Style: MANHUA (Chinese Webcomic) with Character Consistency');
+  console.log('===========================================\n');
+
+  return { 
+    generatedPanels, 
+    successfulGenerations,
+    totalPanels: panels.length,
+    limitedTo: limitedPanels.length
+  };
 }
 
 module.exports = { generateImages, generateImagesConsistent };
-
-

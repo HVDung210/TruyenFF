@@ -48,7 +48,9 @@ export default function FollowPage() {
                   )}
             <span className="text-xl font-bold text-blue-400">Truyện Đang Theo Dõi</span>
             <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                {stories.map((story) => (
+                {stories
+                  .filter((story) => story.id % 2 === 0) 
+                  .map((story) => (
                     <div 
                       key={story.id}
                       className="transform transition-transform duration-200 hover:scale-105"

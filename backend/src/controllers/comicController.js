@@ -6,6 +6,7 @@ const { spawn } = require('child_process');
 const textToSpeechService = require('../services/textToSpeechService');
 const videoService = require('../services/videoService');
 const geminiService = require('../services/geminiService');
+const ffmpeg = require('fluent-ffmpeg');
 
 // Ensure temp directory exists
 const TEMP_DIR = path.join(__dirname, '..', 'tmp');
@@ -426,12 +427,7 @@ exports.removeBubbles = async (req, res) => {
 };
 
 
-// --- CẤU HÌNH KẾT NỐI KAGGLE ---
-// URL này thay đổi mỗi lần bạn chạy lại Kaggle, hãy cập nhật nó
-const KAGGLE_API_URL = "https://6a9125141ac5.ngrok-free.app"; // <--- URL NGROK TỪ KAGGLE
-
 const httpsAgent = new https.Agent({ keepAlive: true });
-
 // Hàm "Ngủ" để tránh lỗi Rate Limit của Gemini Flash (Free tier)
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -445,122 +441,103 @@ exports.generateVideoAI = async (req, res) => {
       return res.status(400).json({ error: 'Thiếu filesData' });
     }
 
-    console.log(`[ComicController] Bắt đầu quy trình AI cho ${filesData.length} file...`);
+    console.log(`[ComicController] Bắt đầu xử lý ${filesData.length} file...`);
     const finalResults = [];
 
-    // Xử lý tuần tự từng file
+    // --- VÒNG LẶP 1: DUYỆT TỪNG FILE TRUYỆN ---
     for (const file of filesData) {
-        console.log(`\n📂 Đang xử lý file: ${file.fileName}`);
-        const processedPanels = [];
+        console.log(`\n📂 File: ${file.fileName}`);
+        const processedPanels = []; // Chứa kết quả của file này
 
-        // Xử lý tuần tự từng panel
+        // --- VÒNG LẶP 2: DUYỆT TỪNG PANEL (QUAN TRỌNG: TUẦN TỰ) ---
         for (const panel of file.panels) {
-            console.log(`   👉 Panel ${panel.panelId}: Đang phân tích...`);
+            console.log(`   👉 Panel ${panel.panelId}: Đang xử lý...`);
             
-            // --- 1. CHUẨN BỊ ẢNH ---
-            // Ảnh nét để Gemini phân tích (ưu tiên ảnh gốc cắt ra)
-            // Nếu frontend chưa gửi crop thì dùng tạm imageB64
-            const imageForAnalysis = panel.croppedImageBase64 || panel.imageB64;
-            
-            // Ảnh sạch để làm Video (ưu tiên ảnh đã xóa bong bóng)
-            // Nếu không có ảnh inpaint thì dùng ảnh gốc (chấp nhận có chữ)
-            const imageForVideo = panel.inpaintedImageB64 || panel.croppedImageBase64 || panel.imageB64; 
-
-            // --- 2. PHÂN TÍCH MOTION (GEMINI) ---
-            let motionParams = { motion_bucket_id: 75, fps: 7 }; // Giá trị mặc định
+            // 1. CHUẨN BỊ THAM SỐ MOTION (GEMINI HOẶC DEFAULT)
+            let motionParams = { motion_bucket_id: 127, fps: 7 };
             
             try {
+                // Ưu tiên ảnh crop gốc để Gemini phân tích cho chuẩn
+                const imageForAnalysis = panel.croppedImageBase64 || panel.imageB64;
+                
                 if (imageForAnalysis) {
-                    console.log(`      🤖 Đang hỏi Gemini (Dùng ảnh gốc để đọc tình huống)...`);
+                    // Gọi Gemini Service (Giữ nguyên logic cũ của bạn)
                     const analysis = await geminiService.analyzePanelMotion(imageForAnalysis);
                     
-                    console.log(`      📝 [GEMINI JSON]:`, JSON.stringify(analysis));
-                    
                     if (analysis && analysis.motion_score) {
-                        motionParams.motion_bucket_id = analysis.motion_score || 75;
+                        motionParams.motion_bucket_id = analysis.motion_score;
                         motionParams.fps = analysis.recommended_fps || 7;
-                        console.log(`      💡 Gemini: "${analysis.category}", Motion: ${motionParams.motion_bucket_id}`);
+                        console.log(`      🧠 Gemini: Motion ${motionParams.motion_bucket_id}, FPS ${motionParams.fps}`);
                     }
-                } else {
-                    console.warn("      ⚠️ Không tìm thấy ảnh để phân tích, dùng tham số mặc định.");
                 }
-                
-                // Nghỉ 4 giây để tránh lỗi Rate Limit của Gemini Free
-                await sleep(4000); 
-
             } catch (geminiErr) {
-                console.error(`      ⚠️ Lỗi Gemini (Chuyển sang logic Audio duration):`, geminiErr.message);
-                
-                // Fallback: Nếu Gemini lỗi, dùng độ dài Audio để đoán
-                const duration = panel.duration || 0;
-                if (duration >= 2.0) {
-                    motionParams.motion_bucket_id = 50;  // Cảnh tĩnh/nói chuyện
-                    motionParams.fps = 6;
-                } else {
-                    motionParams.motion_bucket_id = 140; // Cảnh hành động nhanh
-                    motionParams.fps = 8;
-                }
+                console.log(`      ⚠️ Gemini bỏ qua, dùng mặc định.`);
             }
 
-            // --- 3. GỬI SANG KAGGLE (SVD) ---
-            console.log(`      🚀 Gửi sang Kaggle để sinh video (Dùng ảnh Inpaint)...`);
-            
-            if (!imageForVideo) {
-                 processedPanels.push({ 
-                    panelId: panel.panelId, 
-                    success: false, 
-                    error: "Không có dữ liệu ảnh để sinh video" 
-                });
-                continue;
-            }
-
+            // 2. GỬI SANG KAGGLE (CHỈ GỬI 1 PANEL NÀY THÔI)
             try {
-                // Biến KAGGLE_API_URL cần được khai báo ở đầu file (URL Ngrok)
-                const response = await axios.post(`${KAGGLE_API_URL}/generate`, { 
+                // Ảnh để sinh video (ưu tiên ảnh đã inpaint xóa text)
+                const imageForVideo = panel.inpaintedImageB64 || panel.croppedImageBase64 || panel.imageB64;
+
+                console.log(`      🚀 Đang gửi sang Kaggle...`);
+                
+                const response = await axios.post(`${process.env.KAGGLE_API_URL}/generate`, { 
                     filesData: [{
                         fileName: file.fileName,
                         panels: [{
-                            ...panel,
-                            
-                            // [QUAN TRỌNG] Gán ảnh Inpaint vào key 'imageB64' cho Python
-                            imageB64: imageForVideo, 
-                            
+                            panelId: panel.panelId,
+                            imageB64: imageForVideo,
                             motion_bucket_id: motionParams.motion_bucket_id,
                             fps: motionParams.fps
                         }]
                     }]
-                }, {
-                    timeout: 600000, // 10 phút
-                    httpsAgent: httpsAgent,
-                    maxBodyLength: Infinity,
-                    maxContentLength: Infinity
+                }, { 
+                    timeout: 600000, // 10 phút timeout cho 1 panel
+                    maxBodyLength: Infinity
                 });
 
                 if (response.data.success) {
-                    const resultPanel = response.data.data[0].panels[0];
-                    resultPanel.aiMode = `Motion: ${motionParams.motion_bucket_id} (Gemini)`;
-                    processedPanels.push(resultPanel);
-                    console.log(`      ✅ Panel ${panel.panelId} xong!`);
+                    // Lấy kết quả từ Kaggle
+                    const resultData = response.data.data[0].panels[0];
+                    
+                    console.log(`      ✅ Thành công!`);
+                    
+                    // Lưu kết quả vào mảng tạm
+                    processedPanels.push({
+                        panelId: panel.panelId,
+                        success: true,
+                        videoBase64: resultData.videoBase64, // Trả về cho Frontend hiển thị
+                        aiMode: `Motion: ${motionParams.motion_bucket_id}`
+                    });
                 } else {
-                    throw new Error('Kaggle trả về lỗi');
+                    throw new Error("Kaggle success = false");
                 }
 
             } catch (kaggleErr) {
-                console.error(`      ❌ Lỗi Kaggle:`, kaggleErr.message);
-                if (kaggleErr.response) {
-                    console.error('      Kaggle Response:', kaggleErr.response.data);
-                }
-                
-                processedPanels.push({ 
-                    panelId: panel.panelId, 
-                    success: false, 
-                    error: kaggleErr.message 
+                console.error(`      ❌ Lỗi Panel ${panel.panelId}: ${kaggleErr.message}`);
+                // Vẫn push vào mảng nhưng đánh dấu lỗi để Frontend biết
+                processedPanels.push({
+                    panelId: panel.panelId,
+                    success: false,
+                    error: kaggleErr.message
                 });
             }
-        }
-        finalResults.push({ fileName: file.fileName, panels: processedPanels });
-    }
 
+            // Nghỉ 5 giây giữa các panel để giảm tải server
+            await new Promise(resolve => setTimeout(resolve, 5000));
+
+        } // Kết thúc vòng lặp Panels
+
+        // Gom kết quả của File này lại
+        finalResults.push({
+            fileName: file.fileName,
+            panels: processedPanels
+        });
+
+    } // Kết thúc vòng lặp Files
+
+    // Trả kết quả cuối cùng về Frontend
+    console.log(`✅ Hoàn tất quy trình AI!`);
     return res.json({ success: true, data: finalResults });
 
   } catch (err) {
@@ -569,103 +546,6 @@ exports.generateVideoAI = async (req, res) => {
   }
 };
 
-/**
- * BƯỚC 7.2: SINH VIDEO AI (DỰA TRÊN THỜI LƯỢNG AUDIO)
- * Logic: 
- * - Duration > 2s -> Cảnh nói chuyện -> Motion Thấp, FPS Thấp
- * - Duration <= 2s -> Cảnh hành động -> Motion Cao, FPS Cao
- */
-// exports.generateVideoAI = async (req, res) => {
-//   try {
-//     const { filesData } = req.body;
-//     if (!filesData || !Array.isArray(filesData)) {
-//       return res.status(400).json({ error: 'Thiếu filesData' });
-//     }
-
-//     console.log(`[ComicController] Bắt đầu quy trình AI (Audio-Based) cho ${filesData.length} file...`);
-//     const finalResults = [];
-
-//     // Xử lý tuần tự từng file
-//     for (const file of filesData) {
-//         console.log(`\n📂 Đang xử lý file: ${file.fileName}`);
-//         const processedPanels = [];
-
-//         // Xử lý tuần tự từng panel
-//         for (const panel of file.panels) {
-            
-//             // --- LOGIC PHÂN TÍCH MOTION DỰA VÀO DURATION ---
-//             // Lấy duration (Frontend gửi lên từ VideoGeneratorTester.jsx)
-//             const duration = panel.duration || 0;
-            
-//             let motionParams = { 
-//                 motion_bucket_id: 127, 
-//                 fps: 7 
-//             };
-            
-//             let modeDescription = "";
-
-//             if (duration > 2.0) {
-//                 // > 2s: Giả định là CẢNH NÓI CHUYỆN / TĨNH
-//                 motionParams.motion_bucket_id = 50;  // Rung rất nhẹ để tránh méo mặt
-//                 motionParams.fps = 6;                // FPS thấp cho cảm giác tĩnh hơn
-//                 modeDescription = "TALK (Low Motion)";
-//             } else {
-//                 // <= 2s: Giả định là CẢNH HÀNH ĐỘNG / TIẾNG ĐỘNG
-//                 motionParams.motion_bucket_id = 140; // Rung mạnh
-//                 motionParams.fps = 8;                // FPS cao cho mượt
-//                 modeDescription = "ACTION (High Motion)";
-//             }
-
-//             console.log(`   👉 Panel ${panel.panelId} (${duration}s) -> Chế độ: ${modeDescription}`);
-
-//             // --- GỬI SANG COLAB ---
-//             try {
-//                 const response = await axios.post(`${COLAB_API_URL}/generate`, {
-//                     filesData: [{
-//                         fileName: file.fileName,
-//                         panels: [{
-//                             ...panel,
-//                             // Truyền tham số motion đã tính toán sang Colab
-//                             motion_bucket_id: motionParams.motion_bucket_id,
-//                             fps: motionParams.fps
-//                         }]
-//                     }]
-//                 }, {
-//                     timeout: 600000, // 10 phút timeout
-//                     httpsAgent: httpsAgent,
-//                     maxBodyLength: Infinity,
-//                     maxContentLength: Infinity
-//                 });
-
-//                 if (response.data.success) {
-//                     const resultPanel = response.data.data[0].panels[0];
-//                     // Gán thêm thông tin mode để debug
-//                     resultPanel.aiMode = modeDescription;
-//                     processedPanels.push(resultPanel);
-//                     console.log(`      ✅ Panel ${panel.panelId} xong!`);
-//                 } else {
-//                     throw new Error('Colab trả về lỗi');
-//                 }
-
-//             } catch (colabErr) {
-//                 console.error(`      ❌ Lỗi Colab:`, colabErr.message);
-//                 processedPanels.push({ 
-//                     panelId: panel.panelId, 
-//                     success: false, 
-//                     error: colabErr.message 
-//                 });
-//             }
-//         }
-//         finalResults.push({ fileName: file.fileName, panels: processedPanels });
-//     }
-
-//     return res.json({ success: true, data: finalResults });
-
-//   } catch (err) {
-//     console.error('[ComicController] Fatal Error:', err.message);
-//     return res.status(500).json({ error: err.message });
-//   }
-// };
 
 /**
  * BƯỚC 7.3: GHÉP SCENE (XỬ LÝ BOOMERANG / ZOOM)
@@ -816,45 +696,105 @@ exports.generateFinalVideo = async (req, res) => {
 };
 
 /**
-  * BƯỚC 7.5: TẠO VIDEO TỔNG HỢP (FULL CHAPTER)
-  */
-exports.generateMegaVideo = async (req, res) => {
+ * API: Ghép danh sách các video clip (panel) thành 1 file MP4 hoàn chỉnh
+ * Input: { videoPaths: ["/path/to/vid1.mp4", "/path/to/vid2.mp4"] }
+ */
+/**
+ * API: Ghép danh sách các video clip (panel) thành 1 file MP4 hoàn chỉnh
+ * Input: { videoPaths: ["/path/to/vid1.mp4", "/path/to/vid2.mp4"] }
+ */
+exports.mergeFinalVideo = async (req, res) => {
     try {
-        const { finalVideos } = req.body; // Danh sách URL từ bước 7.4
+        const { videoPaths } = req.body;
 
-        if (!finalVideos || !Array.isArray(finalVideos) || finalVideos.length === 0) {
-            return res.status(400).json({ error: 'Thiếu danh sách video đầu vào' });
+        if (!videoPaths || !Array.isArray(videoPaths) || videoPaths.length === 0) {
+            return res.status(400).json({ error: 'Danh sách video rỗng.' });
         }
 
-        console.log('[ComicController] Nhận yêu cầu ghép Mega Video...');
+        console.log(`[ComicController] Bắt đầu ghép ${videoPaths.length} clips từ TEMP_DIR...`);
 
-        // Lấy danh sách URL
-        const urlList = finalVideos.map(v => v.finalUrl).filter(url => url);
+        // --- 1. CẤU HÌNH ĐƯỜNG DẪN ĐÚNG ---
         
-        if (urlList.length === 0) return res.status(400).json({ error: 'Danh sách video rỗng' });
+        // 🔥 SỬA Ở ĐÂY: Sử dụng TEMP_DIR đã khai báo ở đầu file (../tmp)
+        // Thay vì path.join(__dirname, '/tmp') hay public/tmp
+        const inputDir = TEMP_DIR; 
+        
+        // Thư mục chứa file thành phẩm (Output) - Để Frontend truy cập được
+        const outputDir = path.join(__dirname, '../public/outputs');
+        
+        // Đảm bảo thư mục tồn tại
+        if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
-        const outputFileName = `FULL_CHAPTER_${Date.now()}.mp4`;
+        const outputFileName = `Merged_Full_Chapter_${Date.now()}.mp4`;
+        const outputPath = path.join(outputDir, outputFileName);
 
-        try {
-            const result = await videoService.mergeAllVideos(urlList, outputFileName);
+        await new Promise((resolve, reject) => {
+            const command = ffmpeg();
+            let validFilesCount = 0;
 
-            res.json({
-                success: true,
-                data: {
-                    finalUrl: result.megaVideoUrl,
-                    fileName: outputFileName
-                },
-                message: 'Đã ghép toàn bộ chapter thành công!'
+            videoPaths.forEach(rawPath => {
+                // --- XỬ LÝ URL ---
+                let localPath = rawPath;
+
+                if (rawPath.startsWith('http') || rawPath.startsWith('/')) {
+                    // 1. Lấy tên file gốc (Bỏ query ?v=...)
+                    const cleanUrl = rawPath.split('?')[0];
+                    const fileName = path.basename(cleanUrl);
+
+                    // 2. Ghép với đường dẫn TEMP_DIR
+                    const expectedPath = path.join(inputDir, fileName);
+
+                    // 3. Kiểm tra file có tồn tại không
+                    if (fs.existsSync(expectedPath)) {
+                        localPath = expectedPath;
+                        console.log(`   ✅ Tìm thấy: ${fileName}`);
+                    } else {
+                        // Fallback: Thử tìm trong public/static nếu lỡ lưu nhầm chỗ
+                        const backupPath = path.join(__dirname, '../public/static', fileName);
+                        if (fs.existsSync(backupPath)) {
+                            localPath = backupPath;
+                            console.log(`   ⚠️ Tìm thấy ở backup: ${fileName}`);
+                        } else {
+                            console.warn(`   ❌ Không tìm thấy file: ${fileName} tại ${inputDir}`);
+                            return; // Bỏ qua file lỗi
+                        }
+                    }
+                } else {
+                    // Trường hợp gửi full path từ server
+                    if (fs.existsSync(rawPath)) {
+                         localPath = rawPath;
+                    }
+                }
+
+                command.input(localPath);
+                validFilesCount++;
             });
 
-        } catch (error) {
-            console.error('Lỗi ghép Mega Video:', error);
-            res.status(500).json({ error: error.message });
-        }
+            if (validFilesCount < 2) {
+                return reject(new Error(`Cần ít nhất 2 file để ghép (Tìm thấy: ${validFilesCount})`));
+            }
+
+            command
+                .on('error', (err) => {
+                    console.error('FFmpeg Error:', err.message);
+                    reject(err);
+                })
+                .on('end', () => {
+                    console.log('✅ Ghép xong:', outputFileName);
+                    resolve();
+                })
+                .mergeToFile(outputPath, TEMP_DIR); // Dùng TEMP_DIR làm bộ nhớ đệm xử lý
+        });
+
+        res.json({
+            success: true,
+            message: 'Đã ghép video thành công!',
+            url: `/outputs/${outputFileName}`,
+            fullPath: outputPath
+        });
 
     } catch (err) {
-        console.error('[ComicController] Fatal:', err);
+        console.error('[ComicController] Merge Error:', err.message);
         res.status(500).json({ error: err.message });
     }
 };
-

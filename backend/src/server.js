@@ -14,6 +14,7 @@ app.use(express.raw({ limit: BODY_LIMIT, type: ['image/png', 'image/jpeg', 'appl
 
 // 1. Định nghĩa đường dẫn
 const TEMP_DIR = path.join(__dirname, 'tmp');
+app.use('/outputs', express.static(path.join(__dirname, 'public/outputs')));
 
 // 2. LOG QUAN TRỌNG (Backend)
 // Log này sẽ chạy 1 LẦN khi server khởi động

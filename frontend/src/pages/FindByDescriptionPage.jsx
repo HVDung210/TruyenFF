@@ -89,7 +89,7 @@ export default function FindByDescriptionPage() {
       {reasoning.length > 0 && (
         <div className="mb-6 p-4 bg-blue-50 rounded border border-blue-200">
           <h3 className="text-lg font-semibold text-blue-800 mb-3">
-            🤖 Lý do AI lựa chọn các truyện này:
+            Lý do lựa chọn các truyện này:
           </h3>
           <ul className="space-y-2">
             {reasoning.map((reason, index) => (
@@ -121,15 +121,14 @@ export default function FindByDescriptionPage() {
       {isLoading && (
         <div className="text-center py-8">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mb-4"></div>
-          <p className="text-gray-600">AI đang phân tích và tìm kiếm truyện phù hợp...</p>
+          <p className="text-gray-600">Đang phân tích...</p>
         </div>
       )}
 
       {/* Initial State */}
       {stories.length === 0 && !isLoading && !error && !query && (
         <div className="text-gray-500 text-center py-12">
-          <div className="text-6xl mb-4">📚</div>
-          <p className="text-lg">Nhập mô tả để AI tìm truyện phù hợp cho bạn</p>
+          <p className="text-lg">Nhập mô tả để tìm truyện phù hợp cho bạn</p>
           <p className="text-sm mt-2">Ví dụ: "truyện về phép thuật và phiêu lưu" hoặc "romance hiện đại"</p>
         </div>
       )}

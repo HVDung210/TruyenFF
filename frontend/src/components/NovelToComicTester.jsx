@@ -865,18 +865,31 @@ const compressBase64Image = (base64String, quality = 0.8, maxDimension = null) =
   };
 
   // Cập nhật function renderPanelDetails để hiển thị dialogue
-const renderPanelDetails = (panel, showPrompts = false) => (
+const renderPanelDetails = (panel, showPrompts = false, showImage = false) => (
   <div key={panel.panel_id} className="border rounded-lg p-4 mb-4">
     <div className="flex justify-between items-start mb-3">
       <h6 className="font-semibold text-lg">Panel {panel.panel_id}</h6>
-      <span className={`px-2 py-1 text-xs rounded ${
-        panel.scene_type === 'dialogue' ? 'bg-blue-100 text-blue-800' :
-        panel.scene_type === 'action' ? 'bg-red-100 text-red-800' :
-        panel.scene_type === 'establishing' ? 'bg-green-100 text-green-800' :
-        'bg-gray-100 text-gray-800'
-      }`}>
-        {panel.scene_type}
-      </span>
+      <div className="flex gap-2">
+        <span className={`px-2 py-1 text-xs rounded ${
+          panel.scene_type === 'dialogue' ? 'bg-blue-100 text-blue-800' :
+          panel.scene_type === 'action' ? 'bg-red-100 text-red-800' :
+          panel.scene_type === 'establishing' ? 'bg-green-100 text-green-800' :
+          'bg-gray-100 text-gray-800'
+        }`}>
+          {panel.scene_type}
+        </span>
+        
+        {/* Hiển thị status generation */}
+        {panel.image_generation?.status && (
+          <span className={`px-2 py-1 text-xs rounded ${
+            panel.image_generation.status === 'generated' ? 'bg-green-100 text-green-800' :
+            panel.image_generation.status === 'failed' ? 'bg-red-100 text-red-800' :
+            'bg-yellow-100 text-yellow-800'
+          }`}>
+            {panel.image_generation.status}
+          </span>
+        )}
+      </div>
     </div>
     
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -925,7 +938,9 @@ const renderPanelDetails = (panel, showPrompts = false) => (
         {showPrompts && panel.image_generation?.prompt && (
           <div>
             <strong className="text-sm text-gray-600">Image Prompt:</strong>
-            <p className="text-xs bg-gray-50 p-2 rounded mt-1">{panel.image_generation.prompt}</p>
+            <p className="text-xs bg-gray-50 p-2 rounded mt-1 max-h-20 overflow-y-auto">
+              {panel.image_generation.prompt}
+            </p>
             {panel.image_generation.character_descriptions?.length > 0 && (
               <div className="mt-1">
                 <strong className="text-xs text-gray-600">Character Consistency:</strong>
@@ -938,6 +953,48 @@ const renderPanelDetails = (panel, showPrompts = false) => (
         )}
       </div>
     </div>
+    
+    {/* HIỂN THỊ HÌNH ẢNH ĐÃ SINH - QUAN TRỌNG! */}
+    {showImage && panel.image_generation?.image_data && (
+      <div className="mt-4 border-t pt-4">
+        <strong className="text-sm text-gray-600 block mb-2">Generated Image:</strong>
+        <div className="relative">
+          <img 
+            src={panel.image_generation.image_data}
+            alt={`Panel ${panel.panel_id}`}
+            className="w-full max-w-md rounded-lg border shadow-lg"
+            onError={(e) => {
+              console.error(`Failed to load image for panel ${panel.panel_id}`);
+              e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="400" height="300" fill="%23f0f0f0"/><text x="50%" y="50%" text-anchor="middle" fill="%23999">Image Load Failed</text></svg>';
+            }}
+          />
+          
+          {/* Thông tin generation */}
+          <div className="mt-2 text-xs text-gray-500 space-y-1">
+            <div><strong>API Used:</strong> {panel.image_generation.api_used || 'N/A'}</div>
+            <div><strong>Attempts:</strong> {panel.image_generation.attempts || 1}</div>
+            {panel.image_generation.translated && (
+              <div className="text-green-600">✓ Prompt translated to English</div>
+            )}
+            {panel.image_generation.character_descriptions?.length > 0 && (
+              <div className="text-blue-600">✓ Character consistency applied</div>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+    
+    {/* Hiển thị lỗi nếu có */}
+    {showImage && panel.image_generation?.status === 'failed' && (
+      <div className="mt-4 border-t pt-4">
+        <div className="bg-red-50 p-3 rounded">
+          <strong className="text-red-700">Generation Failed:</strong>
+          <p className="text-sm text-red-600 mt-1">
+            {panel.image_generation.error || 'Unknown error'}
+          </p>
+        </div>
+      </div>
+    )}
   </div>
 );
 
@@ -954,7 +1011,7 @@ const renderPanelDetails = (panel, showPrompts = false) => (
   return (
     <div className="max-w-6xl mx-auto p-6 bg-white min-h-screen">
       <h1 className="text-3xl font-bold text-center mb-8 text-gray-800">
-        API Test
+        Novel To Comic Dashboard
       </h1>
 
       {/* Tab Navigation */}
@@ -1256,58 +1313,61 @@ const renderPanelDetails = (panel, showPrompts = false) => (
 
         {/* Generate Images Tab */}
         {activeTab === 'images' && (
-          <div className="space-y-4">
-            <div className="bg-orange-50 p-4 rounded-lg">
-              <h3 className="text-lg font-semibold mb-4">4. Generate AI Images</h3>
-              
-              <div className="mb-4">
-                {characterRefs ? (
-                  <div className="bg-green-50 p-3 rounded flex items-center">
-                    <Users size={16} className="text-green-600 mr-2" />
-                    <span className="text-green-700">Character references available - images will have consistent character design</span>
-                  </div>
-                ) : (
-                  <div className="bg-yellow-50 p-3 rounded flex items-center">
-                    <Users size={16} className="text-yellow-600 mr-2" />
-                    <span className="text-yellow-700">No character references - characters may appear inconsistent across panels</span>
-                  </div>
-                )}
-              </div>
-
-              <button
-                onClick={generateActualImages}
-                disabled={loading.images || (!results.prompts && !results.analyze)}
-                className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50 flex items-center"
-              >
-                {loading.images ? <Loader2 className="animate-spin mr-2" size={16} /> : <Zap className="mr-2" size={16} />}
-                {loading.images ? 'Generating Images...' : 'Generate AI Images'}
-              </button>
-            </div>
-
-            {results.images && (
-              <div className="bg-white border rounded-lg p-4">
-                <h4 className="font-semibold text-lg mb-4">AI Image Generation Results</h4>
-                
-                <div className="grid grid-cols-3 gap-4 mb-6">
-                  <div className="bg-gray-100 p-3 rounded">
-                    <strong>Total Panels:</strong> {results.images.total_panels}
-                  </div>
-                  <div className="bg-green-100 p-3 rounded">
-                    <strong>Successfully Generated:</strong> {results.images.successful_generations}
-                  </div>
-                  <div className="bg-red-100 p-3 rounded">
-                    <strong>Failed:</strong> {results.images.total_panels - results.images.successful_generations}
-                  </div>
-                </div>
-
-                <div>
-                  <h5 className="font-semibold mb-3">Generated Images:</h5>
-                  {results.images.panels?.map(panel => renderPanelDetails(panel, true, true))}
-                </div>
-              </div>
-            )}
+  <div className="space-y-4">
+    <div className="bg-orange-50 p-4 rounded-lg">
+      <h3 className="text-lg font-semibold mb-4">4. Generate AI Images</h3>
+      
+      <div className="mb-4">
+        {characterRefs ? (
+          <div className="bg-green-50 p-3 rounded flex items-center">
+            <Users size={16} className="text-green-600 mr-2" />
+            <span className="text-green-700">Character references available - images will have consistent character design</span>
+          </div>
+        ) : (
+          <div className="bg-yellow-50 p-3 rounded flex items-center">
+            <Users size={16} className="text-yellow-600 mr-2" />
+            <span className="text-yellow-700">No character references - characters may appear inconsistent across panels</span>
           </div>
         )}
+      </div>
+
+      <button
+        onClick={generateActualImages}
+        disabled={loading.images || (!results.prompts && !results.analyze)}
+        className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50 flex items-center"
+      >
+        {loading.images ? <Loader2 className="animate-spin mr-2" size={16} /> : <Zap className="mr-2" size={16} />}
+        {loading.images ? 'Generating Images...' : 'Generate AI Images'}
+      </button>
+    </div>
+
+    {results.images && (
+      <div className="bg-white border rounded-lg p-4">
+        <h4 className="font-semibold text-lg mb-4">AI Image Generation Results</h4>
+        
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="bg-gray-100 p-3 rounded">
+            <strong>Total Panels:</strong> {results.images.total_panels || results.images.panels?.length}
+          </div>
+          <div className="bg-green-100 p-3 rounded">
+            <strong>Successfully Generated:</strong> {results.images.successful_generations || 0}
+          </div>
+          <div className="bg-red-100 p-3 rounded">
+            <strong>Failed:</strong> {(results.images.total_panels || results.images.panels?.length || 0) - (results.images.successful_generations || 0)}
+          </div>
+        </div>
+
+        <div>
+          <h5 className="font-semibold mb-3">Generated Images:</h5>
+          {results.images.panels?.map(panel => (
+            // QUAN TRỌNG: Thêm tham số showImage = true
+            renderPanelDetails(panel, true, true)
+          ))}
+        </div>
+      </div>
+    )}
+  </div>
+)}
 
         {/* Add Dialogue Tab */}
         {activeTab === 'dialogue' && (
