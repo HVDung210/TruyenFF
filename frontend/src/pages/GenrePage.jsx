@@ -55,30 +55,57 @@ export default function GenrePage() {
   const currentError = isShowingAll ? allStoriesError : genreStoriesError;
   const currentFetching = isShowingAll ? isFetchingAll : isFetchingGenre;
 
-  const handleGenreChange = (genre) => {
-    // Prefetch data trước khi navigate để giảm loading time
-    if (genre !== 'Tất cả' && genre !== selectedGenre) {
-      prefetchStoriesByGenre(genre);
-    }
-    
-    // Sử dụng transition để smooth hơn
-    startTransition(() => {
-      if (genre === 'Tất cả') {
-        navigate('/the-loai', { replace: true }); // replace: true để tránh history spam
-      } else {
-        navigate(`/the-loai/${encodeURIComponent(genre)}`, { replace: true });
+  const handleGenreChange = async (genre) => {
+    // Prefetch data trước khi navigate
+    startTransition(async () => {
+      try {
+        if (genre !== 'Tất cả' && genre !== selectedGenre) {
+          // Đợi prefetch xong trước khi navigate
+          await prefetchStoriesByGenre(genre);
+        }
+        
+        // Navigate sau khi prefetch xong
+        if (genre === 'Tất cả') {
+          navigate('/the-loai', { replace: true });
+        } else {
+          navigate(`/the-loai/${encodeURIComponent(genre)}`, { replace: true });
+        }
+      } catch (error) {
+        console.error('Error prefetching genre:', error);
+        // Vẫn navigate nếu có lỗi
+        if (genre === 'Tất cả') {
+          navigate('/the-loai', { replace: true });
+        } else {
+          navigate(`/the-loai/${encodeURIComponent(genre)}`, { replace: true });
+        }
       }
     });
   };
 
+  // Prefetch khi hover vào button thể loại
+  const handleGenreHover = (genre) => {
+    if (genre !== 'Tất cả' && genre !== selectedGenre) {
+      prefetchStoriesByGenre(genre);
+    }
+  };
+
+  // Prefetch khi hover - không cần await
   const handleStoryHover = (story) => {
     prefetchStory(story.id);
     prefetchChapters(story.id);
     
-    // Prefetch chapter mới nhất nếu có
     if (story.chapter_count) {
       prefetchChapter(story.id, story.chapter_count);
     }
+  };
+
+  // Prefetch khi click - cần await để đợi xong mới navigate
+  const handleStoryClick = async (story) => {
+    await Promise.all([
+      prefetchStory(story.id),
+      prefetchChapters(story.id),
+      story.chapter_count ? prefetchChapter(story.id, story.chapter_count) : Promise.resolve()
+    ]);
   };
 
   if (currentError) {
@@ -126,9 +153,9 @@ export default function GenrePage() {
         <>
           {/* Loading indicator khi đang transition */}
           {(currentFetching || isPending) && (
-            <div className="fixed top-4 right-4 z-40 bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm flex items-center gap-2">
-              <div className="w-3 h-3 border border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-              Đang cập nhật...
+            <div className="fixed top-20 right-4 z-40 bg-blue-100 text-blue-800 px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
+              <LoadingSpinner size="small" />
+              Đang tải dữ liệu...
             </div>
           )}
 
@@ -141,12 +168,21 @@ export default function GenrePage() {
                 value={selectedGenre}
                 onChange={(e) => handleGenreChange(e.target.value)}
                 disabled={isPending}
+                onMouseOver={(e) => {
+                  const selectedOption = e.target.options[e.target.selectedIndex + 1];
+                  if (selectedOption) {
+                    handleGenreHover(selectedOption.value);
+                  }
+                }}
                 className={`px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white transition-opacity ${
                   isPending ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
                 {genres.map((genre, index) => (
-                  <option key={index} value={genre}>
+                  <option 
+                    key={index} 
+                    value={genre}
+                  >
                     {genre}
                   </option>
                 ))}
@@ -160,7 +196,7 @@ export default function GenrePage() {
             </p>
           </div>
 
-          {currentStories.length === 0 && (
+          {currentStories.length === 0 && !isPending && (
             <div className="text-center py-12">
               <p className="text-gray-500 text-lg">
                 Không tìm thấy truyện nào thuộc thể loại "{selectedGenre}"
@@ -170,8 +206,8 @@ export default function GenrePage() {
 
           {/* Sử dụng CSS transition để smooth khi content thay đổi */}
           <div 
-            className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 transition-opacity duration-200 ${
-              isPending ? 'opacity-70' : 'opacity-100'
+            className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 transition-opacity duration-300 ${
+              isPending ? 'opacity-30 pointer-events-none' : 'opacity-100'
             }`}
           >
             {currentStories.map((story) => (
@@ -180,7 +216,10 @@ export default function GenrePage() {
                 onMouseEnter={() => handleStoryHover(story)}
                 className="transform transition-transform duration-200 hover:scale-105"
               >
-                <StoryCard story={story} onStoryClick={handleStoryHover} />
+                <StoryCard 
+                  story={story} 
+                  onStoryClick={handleStoryClick}
+                />
               </div>
             ))}
           </div>

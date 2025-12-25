@@ -8,6 +8,9 @@ export const QUERY_KEYS = {
   CHAPTER: 'chapter',
   SEARCH: 'search',
   STORIES_BY_GENRE: 'stories-by-genre',
+  FOLLOWED_STORIES: 'followedStories',
+  FOLLOWED_IDS: 'followedStoryIds',
+  FOLLOW_STATUS: 'followStatus',
 };
 
 // Hook để lấy tất cả truyện
@@ -214,4 +217,106 @@ export function useRefreshData() {
     refreshStoriesByGenre,
     softRefresh 
   };
+}
+
+export function useFollowedStories() {
+  return useQuery({
+    queryKey: ['followedStories'],
+    queryFn: async () => {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:5000/api/followed-stories', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (!response.ok) throw new Error('Failed to fetch followed stories');
+      
+      const data = await response.json();
+      return data.stories || [];
+    },
+    enabled: !!localStorage.getItem('token'),
+    staleTime: 1 * 60 * 1000, // 1 phút - để data refresh nhanh hơn
+    cacheTime: 15 * 60 * 1000,
+    refetchOnMount: true, // ✅ Luôn refetch khi mount lại
+    refetchOnWindowFocus: true, // ✅ Refetch khi user quay lại tab
+  });
+}
+
+// Hook để check trạng thái follow
+export function useFollowStatus(storyId) {
+  return useQuery({
+    queryKey: ['followStatus', storyId],
+    queryFn: async () => {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:5000/api/follow/${storyId}/check`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (!response.ok) throw new Error('Failed to check follow status');
+      
+      const data = await response.json();
+      return data.checkFollowing;
+    },
+    enabled: !!(storyId && localStorage.getItem('token')),
+    staleTime: 3 * 60 * 1000,
+    cacheTime: 10 * 60 * 1000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+  });
+}
+
+// Hook để follow/unfollow
+export function useFollowMutation(storyId) {
+  const queryClient = useQueryClient();
+
+  const followMutation = useMutation({
+    mutationFn: async () => {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:5000/api/follow/${storyId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to follow');
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['followStatus', storyId]);
+      queryClient.invalidateQueries(['followedStories']);
+    },
+  });
+
+  const unfollowMutation = useMutation({
+    mutationFn: async () => {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:5000/api/unfollow/${storyId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to unfollow');
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['followStatus', storyId]);
+      queryClient.invalidateQueries(['followedStories']);
+    },
+  });
+
+  return { followMutation, unfollowMutation };
 }

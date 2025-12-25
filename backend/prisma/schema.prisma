@@ -87,9 +87,11 @@ model FollowedStories {
   story_id    Int
   followed_at DateTime @default(now())
   // Relations
-  user        User  @relation(fields: [user_id], references: [user_id])
-  story       Story @relation(fields: [story_id], references: [story_id])
+  user        User  @relation(fields: [user_id], references: [user_id],  onDelete: Cascade)
+  story       Story @relation(fields: [story_id], references: [story_id],  onDelete: Cascade)
   @@id([user_id, story_id])
+  @@index([user_id])
+  @@index([story_id])
 }
 
 model FavoriteStories {
@@ -97,9 +99,11 @@ model FavoriteStories {
   story_id     Int
   favorited_at DateTime @default(now())
   // Relations
-  user         User  @relation(fields: [user_id], references: [user_id])
-  story        Story @relation(fields: [story_id], references: [story_id])
+  user         User  @relation(fields: [user_id], references: [user_id],  onDelete: Cascade)
+  story        Story @relation(fields: [story_id], references: [story_id],  onDelete: Cascade)
   @@id([user_id, story_id])
+  @@index([user_id])
+  @@index([story_id])
 }
 
 model ReadHistory {
@@ -110,9 +114,12 @@ model ReadHistory {
   last_read_page  Int?
   read_at         DateTime @default(now())
   // Relations
-  user            User     @relation(fields: [user_id], references: [user_id])
-  story           Story    @relation(fields: [story_id], references: [story_id])
-  chapter         Chapter  @relation(fields: [chapter_id], references: [chapter_id])
+  user            User     @relation(fields: [user_id], references: [user_id],  onDelete: Cascade)
+  story           Story    @relation(fields: [story_id], references: [story_id],  onDelete: Cascade)
+  chapter         Chapter  @relation(fields: [chapter_id], references: [chapter_id],  onDelete: Cascade)
+  @@index([user_id])
+  @@index([story_id])
+  @@index([chapter_id])
 }
 
 model UserActivities {

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import StoryCard from "../components/StoryCard";
+import LoadingSpinner from "../components/LoadingSpinner";
 import { useSearchStoriesMutation, usePrefetchStories } from "../hooks/useStoriesQuery";
 
 export default function FindByDescriptionPage() {
@@ -10,14 +11,12 @@ export default function FindByDescriptionPage() {
   const { prefetchStory, prefetchChapters, prefetchChapter } = usePrefetchStories();
 
   // Prefetch data khi click vào story
-  const handleStoryClick = (story) => {
-    prefetchStory(story.id);
-    prefetchChapters(story.id);
-    
-    // Prefetch chapter mới nhất nếu có
-    if (story.chapter_count) {
-      prefetchChapter(story.id, story.chapter_count);
-    }
+  const handleStoryClick = async (story) => {
+    await Promise.all([
+      prefetchStory(story.id),
+      prefetchChapters(story.id),
+      story.chapter_count ? prefetchChapter(story.id, story.chapter_count) : Promise.resolve()
+    ]);
   };
 
   const handleSearch = async (e) => {
@@ -25,17 +24,17 @@ export default function FindByDescriptionPage() {
     if (!query.trim()) return;
 
     try {
-      const data = await searchMutation.mutateAsync(query);
+      const result = await searchMutation.mutateAsync({ query });
       
-      // Handle both new format (with reasoning) and old format
-      if (data.stories) {
+      // Handle cả format mới và cũ
+      if (result.stories && Array.isArray(result.stories)) {
         setSearchResults({
-          stories: data.stories,
-          reasoning: data.reasoning || []
+          stories: result.stories,
+          reasoning: result.reasoning || []
         });
-      } else {
+      } else if (Array.isArray(result)) {
         setSearchResults({
-          stories: data,
+          stories: result,
           reasoning: []
         });
       }
@@ -111,7 +110,6 @@ export default function FindByDescriptionPage() {
       {/* Empty State */}
       {stories.length === 0 && !isLoading && !error && query && (
         <div className="text-gray-500 text-center py-8">
-          <div className="text-4xl mb-4">🔍</div>
           <p>Không tìm thấy truyện phù hợp với "{query}"</p>
           <p className="text-sm mt-2">Hãy thử với từ khóa khác hoặc mô tả chi tiết hơn.</p>
         </div>

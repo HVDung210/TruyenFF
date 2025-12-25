@@ -1,7 +1,10 @@
-export default function LoadingSpinner() {
+export default function LoadingSpinner({ size = 'normal' }) {
+  const sizeClasses = {
+    small: 'w-4 h-4 border-2',
+    normal: 'w-12 h-12 border-4'
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-10">
-      <div className="animate-spin rounded-full h-14 w-14 border-b-4 border-orange-500"></div>
-    </div>
+    <div className={`${sizeClasses[size]} border-orange-500 border-t-transparent rounded-full animate-spin`}></div>
   );
 }

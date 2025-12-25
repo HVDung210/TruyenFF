@@ -12,7 +12,7 @@ Frontend đã được cập nhật để hỗ trợ text detection trong truy�
 
 ```
 frontend/src/components/
-├── ComicAnalysisDashboard.jsx     # Dashboard chính với tabs
+├── ComicToVideoDashboard.jsx     # Dashboard chính với tabs
 ├── ComicToVideoTester.jsx         # Panel detection (cũ)
 ├── TextDetectionTester.jsx        # Text detection với multiple files
 └── TextDetectionAPITester.jsx    # API tester cho single file
@@ -144,7 +144,7 @@ const API_BASE_URL = 'http://your-backend-url:port';
 ```
 
 ### 3. Thêm tính năng mới
-- Thêm tab mới trong ComicAnalysisDashboard
+- Thêm tab mới trong ComicToVideoDashboard
 - Tạo component mới
 - Import và sử dụng
 
