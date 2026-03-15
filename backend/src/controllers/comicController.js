@@ -427,10 +427,48 @@ exports.removeBubbles = async (req, res) => {
 };
 
 
-const httpsAgent = new https.Agent({ keepAlive: true });
-// Hàm "Ngủ" để tránh lỗi Rate Limit của Gemini Flash (Free tier)
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const httpsAgent = new https.Agent({
+    keepAlive: true,
+    keepAliveMsecs: 30000, // Gửi keep-alive packet mỗi 30s
+    maxSockets: 5,
+    maxFreeSockets: 2,
+    timeout: 600000 // 10 phút
+});
 
+
+// Thêm hàm helper để polling (hỏi liên tục)
+const pollJobStatus = async (jobId) => {
+    const pollInterval = 10000; // Hỏi mỗi 10 giây
+    const maxAttempts = 360;    // Thử tối đa 60 phút (360 * 10s)
+
+    for (let i = 0; i < maxAttempts; i++) {
+        try {
+            console.log(`      ⏳ [Job ${jobId}] Checking status (Attempt ${i + 1})...`);
+            
+            // Gọi API /status/<job_id>
+            const response = await axios.get(`${process.env.KAGGLE_API_URL}/status/${jobId}`, {
+                httpsAgent: httpsAgent,
+                timeout: 10000 // Timeout ngắn cho lệnh check status
+            });
+
+            const { status, data, error } = response.data;
+
+            if (status === 'done') {
+                return data; // Trả về kết quả video
+            } else if (status === 'failed') {
+                throw new Error(`Kaggle Job Failed: ${error}`);
+            }
+            
+            // Nếu vẫn 'processing', đợi 10s rồi hỏi lại
+            await new Promise(resolve => setTimeout(resolve, pollInterval));
+
+        } catch (err) {
+            console.error(`      ⚠️ Lỗi khi check status: ${err.message}. Retrying...`);
+            await new Promise(resolve => setTimeout(resolve, pollInterval));
+        }
+    }
+    throw new Error("Job Timeout: Quá thời gian chờ xử lý.");
+};
 /**
  * BƯỚC 7.2: SINH VIDEO AI (LOGIC: ẢNH CROP -> GEMINI | ẢNH INPAINT -> KAGGLE)
  */
@@ -482,49 +520,46 @@ exports.generateVideoAI = async (req, res) => {
                 console.log(`      🚀 Đang gửi sang Kaggle...`);
                 
                 const response = await axios.post(`${process.env.KAGGLE_API_URL}/generate`, { 
-                    filesData: [{
-                        fileName: file.fileName,
-                        panels: [{
-                            panelId: panel.panelId,
-                            imageB64: imageForVideo,
-                            motion_bucket_id: motionParams.motion_bucket_id,
-                            fps: motionParams.fps
+                        filesData: [{
+                            fileName: file.fileName,
+                            panels: [{
+                                panelId: panel.panelId,
+                                imageB64: imageForVideo,
+                                motion_bucket_id: motionParams.motion_bucket_id,
+                                fps: motionParams.fps
+                            }]
                         }]
-                    }]
-                }, { 
-                    timeout: 600000, // 10 phút timeout cho 1 panel
-                    maxBodyLength: Infinity
-                });
+                    }, { httpsAgent: httpsAgent });
 
-                if (response.data.success) {
-                    // Lấy kết quả từ Kaggle
-                    const resultData = response.data.data[0].panels[0];
-                    
-                    console.log(`      ✅ Thành công!`);
-                    
-                    // Lưu kết quả vào mảng tạm
+                    if (response.data.success && response.data.job_id) {
+                        const jobId = response.data.job_id;
+                        console.log(`      🎫 Job ID: ${jobId}. Đang đợi kết quả...`);
+                        
+                        // 2. POLLING (Đợi kết quả)
+                        const jobResultData = await pollJobStatus(jobId);
+                        
+                        // Lấy kết quả
+                        const resultData = jobResultData[0].panels[0];
+                        console.log(`      ✅ Thành công!`);
+                        
+                        processedPanels.push({
+                            panelId: panel.panelId,
+                            success: true,
+                            videoBase64: resultData.videoBase64,
+                            aiMode: `Motion: ${motionParams.motion_bucket_id}`
+                        });
+                    } else {
+                        throw new Error("Không nhận được Job ID từ Kaggle");
+                    }
+
+                } catch (kaggleErr) {
+                    console.error(`      ❌ Lỗi Panel ${panel.panelId}: ${kaggleErr.message}`);
                     processedPanels.push({
                         panelId: panel.panelId,
-                        success: true,
-                        videoBase64: resultData.videoBase64, // Trả về cho Frontend hiển thị
-                        aiMode: `Motion: ${motionParams.motion_bucket_id}`
+                        success: false,
+                        error: kaggleErr.message
                     });
-                } else {
-                    throw new Error("Kaggle success = false");
                 }
-
-            } catch (kaggleErr) {
-                console.error(`      ❌ Lỗi Panel ${panel.panelId}: ${kaggleErr.message}`);
-                // Vẫn push vào mảng nhưng đánh dấu lỗi để Frontend biết
-                processedPanels.push({
-                    panelId: panel.panelId,
-                    success: false,
-                    error: kaggleErr.message
-                });
-            }
-
-            // Nghỉ 5 giây giữa các panel để giảm tải server
-            await new Promise(resolve => setTimeout(resolve, 5000));
 
         } // Kết thúc vòng lặp Panels
 

@@ -54,10 +54,10 @@ async function followStory(req, res) {
  */
 async function unfollowStory(req, res) {
     try {
-        let userId = req.user.userId;
-        let storyId = req.params.storyId;
+        const userId = req.user.userId;
+        const storyId = req.params.storyId;
 
-        let storyIdNum = parseInt(storyId);
+        const storyIdNum = parseInt(storyId);
         if (isNaN(storyIdNum)) {
             return res.status(400).json({
                 success: false,
@@ -102,7 +102,7 @@ async function unfollowStory(req, res) {
  */
 async function getFollowedStories(req, res) {
     try {
-        let userId = req.user.userId;
+        const userId = req.user.userId;
 
         const stories = await followService.getFollowedStories(userId);
         return res.status(200).json({
@@ -128,7 +128,7 @@ async function getFollowedStories(req, res) {
  */
 async function getFollowedStoryIds(req, res) {
     try {
-        let userId = req.user.userId;
+        const userId = req.user.userId;
 
         const stories = await followService.getFollowedStoryIds(userId);
         return res.status(200).json({
@@ -155,8 +155,8 @@ async function getFollowedStoryIds(req, res) {
 async function checkFollowing(req, res) {
     // TODO: Viết code ở đây
     try {
-        let userId = req.user.userId;
-        let storyId = req.params.storyId;
+        const userId = req.user.userId;
+        const storyId = req.params.storyId;
 
         const storyIdNum = parseInt(storyId);
         if (isNaN(storyIdNum)) {

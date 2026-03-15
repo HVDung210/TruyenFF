@@ -9,6 +9,7 @@ const charactersRouter = require('./characters');
 const textDetectionRouter = require('./textDetection');
 const authRouter = require('./auth');
 const followRouter = require('./follow');
+const readingHistoryRouter = require('./readingHistory'); 
 
 router.use('/', storiesRouter); // includes root, stories list and story endpoints
 router.use('/api', searchRouter);
@@ -18,6 +19,7 @@ router.use('/api', charactersRouter);
 router.use('/api/text-detection', textDetectionRouter);
 router.use('/api/auth', authRouter);
 router.use('/api', followRouter);
+router.use('/api/reading-history', readingHistoryRouter); 
 
 module.exports = router;
 

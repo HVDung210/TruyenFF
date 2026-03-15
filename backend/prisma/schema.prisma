@@ -107,19 +107,25 @@ model FavoriteStories {
 }
 
 model ReadHistory {
-  history_id      Int      @id @default(autoincrement())
-  user_id         Int
-  story_id        Int
-  chapter_id      Int
-  last_read_page  Int?
-  read_at         DateTime @default(now())
+  history_id       Int      @id @default(autoincrement())
+  user_id          Int
+  story_id         Int
+  chapter_id       Int
+  chapter_number   Int      // Thêm chapter_number để dễ hiển thị "Đọc tiếp Chương X"
+  last_read_page   Int?     // Page/image nào trong chapter (optional)
+  read_percentage  Int?     @default(0) // % đọc trong chapter (0-100)
+  read_at          DateTime @default(now()) // Thời gian đọc gần nhất
+  
   // Relations
-  user            User     @relation(fields: [user_id], references: [user_id],  onDelete: Cascade)
-  story           Story    @relation(fields: [story_id], references: [story_id],  onDelete: Cascade)
-  chapter         Chapter  @relation(fields: [chapter_id], references: [chapter_id],  onDelete: Cascade)
-  @@index([user_id])
+  user             User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  story            Story    @relation(fields: [story_id], references: [story_id], onDelete: Cascade)
+  chapter          Chapter  @relation(fields: [chapter_id], references: [chapter_id], onDelete: Cascade)
+  
+  // Indexes để tối ưu query
+  @@index([user_id, read_at]) // Query lịch sử của user, sort theo thời gian
+  @@index([user_id, story_id]) // Check xem user đã đọc story này chưa
   @@index([story_id])
-  @@index([chapter_id])
+  @@unique([user_id, story_id]) // 1 user chỉ có 1 record cho 1 story (tự động update)
 }
 
 model UserActivities {
