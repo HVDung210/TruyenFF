@@ -24,11 +24,15 @@ console.log(`[SERVER] Đường dẫn thư mục (ABSOLUTE): ${TEMP_DIR}`);
 // 3. Phục vụ file
 app.use('/static', express.static(TEMP_DIR));
 
+// Sửa trong server.js
 app.use((req, res, next) => {
-  if (req.path.includes('upload')) {
+  // Kiểm tra nếu đường dẫn liên quan đến comic hoặc upload
+  if (req.path.includes('comic') || req.path.includes('upload')) {
     req.setTimeout(UPLOAD_TIMEOUT_MS);
     res.setTimeout(UPLOAD_TIMEOUT_MS);
-    if (req.connection && req.connection.setTimeout) req.connection.setTimeout(UPLOAD_TIMEOUT_MS);
+    if (req.connection && req.connection.setTimeout) {
+        req.connection.setTimeout(UPLOAD_TIMEOUT_MS);
+    }
   }
   next();
 });
@@ -37,8 +41,8 @@ loadFonts();
 
 app.use('/', routes);
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
 
-
+server.timeout = UPLOAD_TIMEOUT_MS;

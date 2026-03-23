@@ -5,7 +5,7 @@ const PORT = process.env.PORT || 5000;
 
 // Payload and timeout configs
 const BODY_LIMIT = process.env.BODY_LIMIT || '500mb';
-const PARAMETER_LIMIT = Number(process.env.PARAMETER_LIMIT || 100000);
+const PARAMETER_LIMIT = Number(process.env.PARAMETER_LIMIT || 200000);
 const UPLOAD_TIMEOUT_MS = Number(process.env.UPLOAD_TIMEOUT_MS || 1800000); // 30 minutes
 
 // HuggingFace

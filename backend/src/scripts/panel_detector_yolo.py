@@ -64,7 +64,7 @@ def detect_panels_yolo(image_bgr: np.ndarray, model_path: str = None) -> List[tu
             # Lấy đường dẫn thư mục chứa file script hiện tại (src/scripts)
             current_dir = os.path.dirname(os.path.abspath(__file__))
             # Trỏ vào thư mục models/best.pt
-            model_path = os.path.join(current_dir, 'models', 'best.pt')
+            model_path = os.path.join(current_dir, 'models', 'finetune_detect.pt')
             print(f"[PY] Default model path resolved to: {model_path}", file=sys.stderr)
 
         # Kiểm tra lại lần nữa, nếu vẫn không thấy thì báo lỗi hoặc để YOLO tự tải (nếu có internet)
@@ -87,12 +87,14 @@ def detect_panels_yolo(image_bgr: np.ndarray, model_path: str = None) -> List[tu
             print(f"[PY] YOLO detected {len(boxes)} panels", file=sys.stderr)
             
             for box in boxes:
-                x1, y1, x2, y2 = box.xyxy[0].tolist()
-                x = int(x1)
-                y = int(y1)
-                w = int(x2 - x1)
-                h = int(y2 - y1)
-                panels.append((x, y, w, h))
+                cls_id = int(box.cls[0].item())
+                if cls_id == 0:
+                    x1, y1, x2, y2 = box.xyxy[0].tolist()
+                    x = int(x1)
+                    y = int(y1)
+                    w = int(x2 - x1)
+                    h = int(y2 - y1)
+                    panels.append((x, y, w, h))
         
         return panels
         

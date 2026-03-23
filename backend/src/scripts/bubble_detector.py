@@ -11,7 +11,7 @@ except ImportError:
     print(json.dumps({"error": "Thiếu thư viện ultralytics"})); sys.exit(1)
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(CURRENT_DIR, 'models', 'speech-bubble-seg.pt')
+MODEL_PATH = os.path.join(CURRENT_DIR, 'models', 'finetune_detect.pt')
 
 def load_model():
     if os.path.exists(MODEL_PATH):
@@ -32,8 +32,13 @@ def detect_bubbles_in_panel(image_bgr, model):
     
     bubbles = []
     if results[0].masks is not None:
+        classes = results[0].boxes.cls.cpu().numpy()
         masks = results[0].masks.data.cpu().numpy()
         for i, m in enumerate(masks):
+            cls_id = int(classes[i])
+            if cls_id != 1: 
+                continue
+            
             m_resized = cv2.resize(m, (w, h))
             binary_mask = (m_resized > 0.5).astype(np.uint8) * 255
             

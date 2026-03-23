@@ -25,7 +25,7 @@ except ImportError:
     YOLO_AVAILABLE = False
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-SEG_MODEL_PATH = os.path.join(CURRENT_DIR, 'models', 'speech-bubble-seg.pt')
+SEG_MODEL_PATH = os.path.join(CURRENT_DIR, 'models', 'finetune_detect.pt')
 
 def load_models():
     lama = None
@@ -95,8 +95,12 @@ def get_bubble_mask_yolo(image_bgr, model):
     results = model.predict(image_bgr, conf=0.2, iou=0.4, retina_masks=True, verbose=False)
     
     if results[0].masks is not None:
+        classes = results[0].boxes.cls.cpu().numpy()
         masks = results[0].masks.data.cpu().numpy()
-        for m in masks:
+        for i, m in enumerate(masks):
+            cls_id = int(classes[i])
+            if cls_id != 1:
+                continue
             m_resized = cv2.resize(m, (w, h))
             binary_mask = (m_resized > 0.5).astype(np.uint8) * 255
 

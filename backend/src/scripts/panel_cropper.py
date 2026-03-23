@@ -54,7 +54,7 @@ def detect_panels_yolo(image_bgr: np.ndarray, model_path: str = None) -> List[tu
         return detect_panels_opencv(image_bgr)
     try:
         if model_path is None or not os.path.exists(model_path):
-            model_path = 'D:/Ky_2/Thuc_tap/TruyenFF/backend/src/scripts/models/best.pt'
+            model_path = 'D:/Ky_2/Thuc_tap/TruyenFF/backend/src/scripts/models/finetune_detect.pt'
         print(f"[PY] Loading YOLO model from: {model_path}", file=sys.stderr)
         model = YOLO(model_path)
         print("[PY] Running YOLO inference...", file=sys.stderr)

@@ -23,9 +23,9 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 router.post('/comic-to-video/detect', upload.single('file'), controller.detectPanels);
-router.post('/comic-to-video/detect-multiple', upload.array('files', 10), controller.detectPanelsMultiple);
-router.post('/comic/crop-panels-multiple', upload.array('files', 10), controller.cropPanelsMultiple);
-router.post('/comic/crop-from-data', upload.array('files', 10), controller.cropFromData);
+router.post('/comic-to-video/detect-multiple', upload.array('files', 100), controller.detectPanelsMultiple);
+router.post('/comic/crop-panels-multiple', upload.array('files', 100), controller.cropPanelsMultiple);
+router.post('/comic/crop-from-data', upload.array('files', 100), controller.cropFromData);
 
 router.post('/comic/detect-bubbles', controller.detectBubblesMultiple);
 router.post('/comic/video/remove-bubbles', express.json({limit: '50mb'}), controller.removeBubbles);

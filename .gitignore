@@ -4,4 +4,7 @@ backend/truyenff-466701-6d617a31f7b4.json
 backend/src/config/env.js
 backend/src/scripts/models/best.pt
 backend/src/scripts/models/speech-bubble-seg.pt
+backend/src/scripts/models/speech-bubble-seg-v2.pt
+backend/src/scripts/models/speech-bubble-seg-v3.pt
+backend/src/scripts/models/finetune_detect.pt
 backend/.venv
