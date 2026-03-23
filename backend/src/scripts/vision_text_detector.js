@@ -3,136 +3,83 @@ const { ImageAnnotatorClient } = require('@google-cloud/vision');
 
 async function detectTextInImage(imagePath, credentialsPath) {
     try {
-        // Initialize Vision API client
-        const client = new ImageAnnotatorClient({
-            keyFilename: credentialsPath,
-        });
-
+        const client = new ImageAnnotatorClient({ keyFilename: credentialsPath });
         console.error(`[NODE] Reading image from: ${imagePath}`);
-        
-        // Read image file
         const imageBuffer = fs.readFileSync(imagePath);
         
-        console.error(`[NODE] Image size: ${imageBuffer.length} bytes`);
-        
-        // Prepare request
         const request = {
-            image: {
-                content: imageBuffer,
-            },
-            features: [
-                {
-                    type: 'DOCUMENT_TEXT_DETECTION',
-                    maxResults: 1,
-                }
-            ],
+            image: { content: imageBuffer },
+            features: [{ type: 'DOCUMENT_TEXT_DETECTION' }], // Không giới hạn kết quả
         };
 
         console.error(`[NODE] Calling Vision API...`);
-        
-        // Call Vision API
         const [result] = await client.annotateImage(request);
-        
-        console.error(`[NODE] Vision API call completed`);
-        
-        // Process results
-        const textAnnotations = result.textAnnotations || [];
         const fullTextAnnotation = result.fullTextAnnotation || {};
         
-        console.error(`[NODE] Found ${textAnnotations.length} text annotations`);
+        // --- LOGIC GOM CHỮ THÔNG MINH ---
+        const textBlocks = [];
         
-        // Return structured result
-        const response = {
+        if (fullTextAnnotation.pages) {
+            fullTextAnnotation.pages.forEach(page => {
+                page.blocks.forEach(block => {
+                    let blockText = '';
+                    block.paragraphs.forEach(para => {
+                        para.words.forEach(word => {
+                            word.symbols.forEach(symbol => {
+                                blockText += symbol.text;
+                                // Xử lý dấu cách và xuống dòng
+                                if (symbol.property && symbol.property.detectedBreak) {
+                                    const breakType = symbol.property.detectedBreak.type;
+                                    if (['SPACE', 'SURE_SPACE', 'EOL_SURE_SPACE'].includes(breakType)) {
+                                        blockText += ' ';
+                                    } else if (breakType === 'LINE_BREAK') {
+                                        blockText += '\n';
+                                    }
+                                }
+                            });
+                        });
+                    });
+                    
+                    if (blockText.trim().length > 0) {
+                        textBlocks.push({
+                            text: blockText.trim(),
+                            vertices: block.boundingBox.vertices // Tọa độ 4 góc của cụm chữ
+                        });
+                    }
+                });
+            });
+        }
+
+        console.error(`[NODE] Gom thành công ${textBlocks.length} cụm chữ.`);
+        
+        return {
             success: true,
-            textAnnotations: textAnnotations.map(annotation => ({
-                description: annotation.description,
-                boundingPoly: annotation.boundingPoly,
-                confidence: annotation.score || 0
-            })),
-            fullTextAnnotation: {
-                text: fullTextAnnotation.text || '',
-                pages: fullTextAnnotation.pages || []
-            },
-            textCount: textAnnotations.length,
-            hasText: textAnnotations.length > 0
+            textBlocks: textBlocks, // Trả về danh sách cụm chữ đã gom
+            hasText: textBlocks.length > 0
         };
-        
-        console.error(`[NODE] Response prepared with ${response.textCount} text annotations`);
-        
-        return response;
         
     } catch (error) {
         console.error(`[NODE][ERROR] Vision API error:`, error);
-        
-        return {
-            success: false,
-            error: error.message,
-            textAnnotations: [],
-            fullTextAnnotation: { text: '', pages: [] },
-            textCount: 0,
-            hasText: false
-        };
+        return { success: false, error: error.message, textBlocks: [], hasText: false };
     }
 }
 
-// Main execution
 async function main() {
     const args = process.argv.slice(2);
-    
     if (args.length < 2) {
-        const errorResult = {
-            success: false,
-            error: 'Usage: node vision_text_detector.js <image_path> <credentials_path>',
-            textAnnotations: [],
-            fullTextAnnotation: { text: '', pages: [] },
-            textCount: 0,
-            hasText: false
-        };
-        process.stdout.write(JSON.stringify(errorResult, null, 2));
+        process.stdout.write(JSON.stringify({ success: false, error: 'Usage: node ...' }));
         process.exit(1);
     }
-    
-    const imagePath = args[0];
-    const credentialsPath = args[1];
-    
-    // Log to stderr only
-    console.error(`[NODE] Starting text detection for: ${imagePath}`);
-    console.error(`[NODE] Using credentials: ${credentialsPath}`);
     
     try {
-        const result = await detectTextInImage(imagePath, credentialsPath);
-        
-        // Output JSON result to stdout (only JSON, no other logs)
-        process.stdout.write(JSON.stringify(result, null, 2));
-        
-        if (result.success) {
-            console.error(`[NODE] Text detection completed successfully`);
-            process.exit(0);
-        } else {
-            console.error(`[NODE] Text detection failed: ${result.error}`);
-            process.exit(1);
-        }
-        
+        const result = await detectTextInImage(args[0], args[1]);
+        process.stdout.write(JSON.stringify(result));
+        process.exit(result.success ? 0 : 1);
     } catch (error) {
-        console.error(`[NODE][ERROR] Unexpected error:`, error);
-        
-        const errorResult = {
-            success: false,
-            error: error.message,
-            textAnnotations: [],
-            fullTextAnnotation: { text: '', pages: [] },
-            textCount: 0,
-            hasText: false
-        };
-        
-        process.stdout.write(JSON.stringify(errorResult, null, 2));
+        process.stdout.write(JSON.stringify({ success: false, error: error.message }));
         process.exit(1);
     }
 }
 
-// Run if called directly
-if (require.main === module) {
-    main();
-}
-
+if (require.main === module) { main(); }
 module.exports = { detectTextInImage };

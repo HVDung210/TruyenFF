@@ -9,6 +9,7 @@ import os
 import time
 import subprocess
 import tempfile
+import math
 from pathlib import Path
 
 # YOLOv12 imports
@@ -219,22 +220,25 @@ def detect_panels_opencv(image_bgr: np.ndarray) -> List[tuple]:
     
     return panels
 
+def get_center(vertices):
+    """Tính tâm của cụm chữ dựa vào tọa độ 4 góc"""
+    x_coords = [v.get('x', 0) for v in vertices]
+    y_coords = [v.get('y', 0) for v in vertices]
+    return (sum(x_coords) / 4, sum(y_coords) / 4)
+
+def get_distance(px, py, rect):
+    """Tính khoảng cách từ điểm đến tâm của hình chữ nhật (Panel)"""
+    rx, ry, rw, rh = rect
+    cx, cy = rx + rw/2, ry + rh/2
+    return math.hypot(px - cx, py - cy)
 
 # --- HÀM ĐIỀU PHỐI CHÍNH (ĐÃ CẬP NHẬT) ---
-def detect_text_in_comic(
-    image_bgr: np.ndarray, 
-    credentials_path: str, 
-    model_path: Optional[str] = None,
-    panel_coords_json: Optional[str] = None # <-- THAM SỐ MỚI
-) -> Dict[str, Any]:    
-    """Detect text trong comic bằng cách phân tích từng panel"""
+def detect_text_in_comic(image_bgr, credentials_path, model_path=None, panel_coords_json=None):
     start_time = time.time()
-    original = image_bgr.copy()
-    h, w, _ = original.shape
+    h, w, _ = image_bgr.shape
 
     # Detect panels (SỬ DỤNG LOGIC MỚI)
     panel_coords = []
-    method = ""
     
     if panel_coords_json:
         print("[PY] Using panels from JSON input", file=sys.stderr)
@@ -257,55 +261,86 @@ def detect_text_in_comic(
             panel_coords = detect_panels_opencv(original)
             method = "OpenCV"
     
-    panels_with_text = []
+    image_base64 = encode_image_to_base64(image_bgr)
+    print("[PY] Calling Vision API on FULL image...", file=sys.stderr)
+    vision_result = call_vision_api(image_base64, credentials_path)
     
-    print(f"[PY] Detected {len(panel_coords)} panels using {method}", file=sys.stderr)
-    
-    for i, (px, py, pw, ph) in enumerate(panel_coords):
-        print(f"[PY] Processing panel {i+1}: x={px}, y={py}, w={pw}, h={ph}", file=sys.stderr)
-        
-        # Crop panel
-        panel_image = crop_panel(original, px, py, pw, ph)
-        
-        # Encode panel thành base64
-        panel_base64 = encode_image_to_base64(panel_image)
-        
-        try:
-            # Gọi Vision API cho panel này
-            vision_result = call_vision_api(panel_base64, credentials_path)
-            
-            panel_info = {
-                "id": i + 1, "x": px, "y": py, "w": pw, "h": ph,
-                "textDetected": len(vision_result.get('textAnnotations', [])) > 0,
-                "textAnnotations": vision_result.get('textAnnotations', []),
-                "fullTextAnnotation": vision_result.get('fullTextAnnotation', {}),
-                "textContent": vision_result.get('fullTextAnnotation', {}).get('text', '')
-            }
-            panels_with_text.append(panel_info)
-            print(f"[PY] Panel {i+1} text detection completed. Text found: {panel_info['textDetected']}", file=sys.stderr)
-            
-        except Exception as e:
-            print(f"[PY][ERROR] Failed to process panel {i+1}: {str(e)}", file=sys.stderr)
-            # Vẫn thêm panel nhưng không có text
-            panel_info = { "id": i + 1, "x": px, "y": py, "w": pw, "h": ph, "textDetected": False, "error": str(e) }
-            panels_with_text.append(panel_info)
+    all_text_blocks = vision_result.get('textBlocks', [])
 
-    # Tạo ảnh annotated
-    result_img = original.copy()
-    for panel in panels_with_text:
-        px, py, pw, ph = panel['x'], panel['y'], panel['w'], panel['h']
-        color = (0, 255, 0) if panel['textDetected'] else (0, 0, 255)  # Xanh nếu có text, đỏ nếu không
-        cv2.rectangle(result_img, (px, py), (px + pw, py + ph), color, 3)
-        cv2.putText(result_img, f'P{panel["id"]}', (px + 5, py + 25), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+    panels_with_text = []
+    for i, (px, py, pw, ph) in enumerate(panel_coords):
+        panels_with_text.append({
+            "id": i + 1, "x": px, "y": py, "w": pw, "h": ph,
+            "textBlocks": [], # Chứa các câu hoàn chỉnh
+            "textContent": ""
+        })
+
+    # 3. GÁN TEXT VÀO PANEL GẦN NHẤT
+    for block in all_text_blocks:
+        vertices = block.get('vertices', [])
+        if len(vertices) == 0: continue
         
+        # Lấy tâm cụm chữ
+        cx, cy = get_center(vertices)
+        
+        assigned_panel_idx = -1
+        min_distance = float('inf')
+        
+        for idx, (px, py, pw, ph) in enumerate(panel_coords):
+            # Kiểm tra xem tâm cụm chữ có nằm trong Panel này không
+            if px <= cx <= px + pw and py <= cy <= py + ph:
+                assigned_panel_idx = idx
+                break # Đã nằm trong panel thì chốt luôn
+            
+            # Nếu không nằm trong panel nào, tìm panel gần nhất
+            dist = get_distance(cx, cy, (px, py, pw, ph))
+            if dist < min_distance:
+                min_distance = dist
+                assigned_panel_idx = idx
+                
+        # Gán cụm chữ vào panel đó
+        if assigned_panel_idx != -1:
+            # Điều chỉnh tọa độ chữ về hệ tọa độ CỦA PANEL (Crop) để sau này Inpaint dễ vẽ Mask
+            panel_x, panel_y = panel_coords[assigned_panel_idx][0], panel_coords[assigned_panel_idx][1]
+            local_vertices = []
+            for v in vertices:
+                local_vertices.append({
+                    "x": v.get('x', 0) - panel_x,
+                    "y": v.get('y', 0) - panel_y
+                })
+            
+            panels_with_text[assigned_panel_idx]["textBlocks"].append({
+                "text": block["text"],
+                "vertices": local_vertices
+            })
+
+    all_text = []
+    result_img = image_bgr.copy() # Tạo bản sao ảnh để vẽ UI
+
+    # Gom text lại thành chuỗi cho frontend dễ hiển thị
+    for p in panels_with_text:
+        p["textDetected"] = len(p["textBlocks"]) > 0
+        p["textContent"] = "\n".join([b["text"] for b in p["textBlocks"]])
+        # Tùy chọn: Bạn có thể lưu lại ảnh crop tại đây nếu cần
+        if p["textContent"]:
+            all_text.append(p["textContent"])
+            
+        # Vẽ khung Panel (Xanh nếu có chữ, Đỏ nếu không có)
+        px, py, pw, ph = p['x'], p['y'], p['w'], p['h']
+        color = (0, 255, 0) if p['textDetected'] else (0, 0, 255)
+        cv2.rectangle(result_img, (px, py), (px + pw, py + ph), color, 3)
+        cv2.putText(result_img, f'P{p["id"]}', (px + 5, py + 25), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+        
+        # (Tùy chọn) Vẽ thêm các khung bao quanh chữ bằng màu vàng
+        for block in p.get("textBlocks", []):
+            # Tọa độ chữ đang là local theo panel, cần cộng thêm px, py để vẽ lên ảnh gốc
+            pts = np.array([[int(v.get('x', 0) + px), int(v.get('y', 0) + py)] for v in block.get('vertices', [])], np.int32)
+            if len(pts) >= 3:
+                cv2.polylines(result_img, [pts], isClosed=True, color=(0, 255, 255), thickness=2)
+
+    # Khởi tạo các biến thời gian và hình ảnh base64 để trả về
     duration_ms = int((time.time() - start_time) * 1000)
     annotated = encode_image_to_base64(result_img)
-    
-    # Tổng hợp tất cả text
-    all_text = []
-    for panel in panels_with_text:
-        if panel['textContent']:
-            all_text.append(panel['textContent'])
     
     return {
         "panelCount": len(panels_with_text),
@@ -314,7 +349,7 @@ def detect_text_in_comic(
         "width": int(w),
         "height": int(h),
         "processingTime": duration_ms,
-        "detectionMethod": method, # Thêm phương thức đã dùng
+        "detectionMethod": method if 'method' in locals() else "JSON_Input",
         "totalTextDetected": len([p for p in panels_with_text if p['textDetected']]),
         "allText": "\n".join(all_text),
         "summary": {

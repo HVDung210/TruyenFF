@@ -9,7 +9,7 @@ const InpaintingTester = ({ files, analysisResults, updateAnalysisResult }) => {
   // ⭐ CHỈ CẦN cropData (Bước 3), KHÔNG CẦN textData (Bước 4)
   const isReady = files.length > 0 &&
     analysisResults.length > 0 &&
-    analysisResults.every(r => r.cropData && r.cropData.success !== false);
+    analysisResults.every(r => r.cropData && r.cropData.success !== false && (r.textData || r.editedTextData));
 
   /**
    * Tổng hợp payload từ state
@@ -17,14 +17,21 @@ const InpaintingTester = ({ files, analysisResults, updateAnalysisResult }) => {
    */
   const buildPayload = () => {
     return analysisResults
-      .filter(r => r.cropData) // Chỉ cần cropData
+      .filter(r => r.cropData)
       .map(result => {
+        // Lấy dữ liệu Text mới nhất (đã edit hoặc gốc)
+        const textSource = result.editedTextData || result.textData;
+
         const panels = result.cropData.panels.map(panel => {
+          // Tìm textBlocks của panel tương ứng
+          const textPanel = textSource?.panels?.find(p => p.id === panel.id);
+          const textBlocks = textPanel?.textBlocks || [];
+
           return {
             panelId: panel.id,
             imageB64: panel.croppedImageBase64,
             dimensions: { w: panel.w, h: panel.h },
-            // ⭐ XÓA bubblePolygons - Backend sẽ dùng YOLO detect
+            textBlocks: textBlocks // Gửi tọa độ chữ xuống Python
           };
         });
 

@@ -298,19 +298,17 @@ const TextDetectionAPITester = () => {
                         </div>
                       )}
 
-                      {selectedPanel.textAnnotations && selectedPanel.textAnnotations.length > 0 && (
+                      {selectedPanel.textBlocks && selectedPanel.textBlocks.length > 0 && (
                         <div>
-                          <h4 className="font-semibold mb-2 text-blue-300">Text annotations:</h4>
+                          <h4 className="font-semibold mb-2 text-blue-300">Các cụm chữ (Blocks):</h4>
                           <div className="bg-slate-700 rounded-lg p-3 max-h-48 overflow-y-auto">
-                            {selectedPanel.textAnnotations.map((annotation, idx) => (
-                              <div key={idx} className="mb-2 p-2 bg-slate-600 rounded text-xs">
-                                <div className="font-semibold mb-1">Text {idx + 1}:</div>
-                                <div className="mb-1">{annotation.description}</div>
-                                {annotation.confidence && (
-                                  <div className="text-gray-400">
-                                    Confidence: {(annotation.confidence * 100).toFixed(1)}%
-                                  </div>
-                                )}
+                            {selectedPanel.textBlocks.map((block, idx) => (
+                              <div key={idx} className="mb-2 p-2 bg-slate-600 rounded text-xs border-l-2 border-blue-400">
+                                <div className="font-semibold text-blue-300 mb-1">Cụm {idx + 1}:</div>
+                                <div className="mb-1 text-white text-sm whitespace-pre-wrap">{block.text}</div>
+                                <div className="text-gray-400 text-[10px] mt-1">
+                                  Tọa độ: {block.vertices?.map(v => `(${v.x},${v.y})`).join(' -> ')}
+                                </div>
                               </div>
                             ))}
                           </div>

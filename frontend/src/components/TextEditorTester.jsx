@@ -66,15 +66,14 @@ const TextEditorTester = ({ files, analysisResults, updateAnalysisResult }) => {
       }
 
       // 4. Tạo danh sách panel mới nhất
-      // Lấy panel từ panelSource, và tìm text tương ứng từ textSource
       const upToDatePanels = panelSource.panels.map(panel => {
-        // Tìm text cho panel này (nếu có)
         const existingTextPanel = textSource?.panels.find(p => p.id === panel.id);
         
         return {
-          ...panel, // Lấy {id, x, y, w, h} từ panelSource
-          textContent: existingTextPanel?.textContent || "", // Lấy text (nếu có)
-          textDetected: existingTextPanel?.textDetected || false // Lấy cờ (nếu có)
+          ...panel, 
+          textContent: existingTextPanel?.textContent || "", 
+          textDetected: existingTextPanel?.textDetected || false,
+          textBlocks: existingTextPanel?.textBlocks || [] // BẢO TỒN TỌA ĐỘ CHỮ
         };
       });
 
