@@ -2,9 +2,9 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 
-// Dùng Gemini 2.0 Flash (Bản mới nhất, đọc ảnh + chữ cực nhanh)
+// Dùng Gemini 2.5 Flash (Bản mới nhất, đọc ảnh + chữ cực nhanh)
 const model = genAI.getGenerativeModel({ 
-    model: "gemini-2.0-flash", 
+    model: "gemini-2.5-flash", 
     generationConfig: { responseMimeType: "application/json" },
     safetySettings: [
         { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },

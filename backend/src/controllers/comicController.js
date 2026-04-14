@@ -446,7 +446,7 @@ const pollJobStatus = async (jobId) => {
             console.log(`      ⏳ [Job ${jobId}] Checking status (Attempt ${i + 1})...`);
             
             // Gọi API /status/<job_id>
-            const response = await axios.get(`${process.env.KAGGLE_API_URL}/status/${jobId}`, {
+            const response = await axios.get(`${process.env.NGROK_URL}/status/${jobId}`, {
                 httpsAgent: httpsAgent,
                 timeout: 10000 // Timeout ngắn cho lệnh check status
             });
@@ -519,7 +519,7 @@ exports.generateVideoAI = async (req, res) => {
 
                 console.log(`      🚀 Đang gửi sang Kaggle...`);
                 
-                const response = await axios.post(`${process.env.KAGGLE_API_URL}/generate`, { 
+                const response = await axios.post(`${process.env.NGROK_URL}/generate`, { 
                         filesData: [{
                             fileName: file.fileName,
                             panels: [{
