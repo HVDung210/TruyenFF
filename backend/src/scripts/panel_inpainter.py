@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 import traceback
 import os
+import time
 from PIL import Image
 
 # --- 1. MONKEY PATCH CHO PILLOW ---
@@ -36,11 +37,9 @@ def load_models():
     if not YOLO_AVAILABLE: return None, None, "Thiếu thư viện ultralytics"
 
     try:
-        sys.stderr.write("[PY] Đang tải model LaMa...\n")
         lama = SimpleLama()
         
         if os.path.exists(SEG_MODEL_PATH):
-            sys.stderr.write(f"[PY] Đang tải Segmentation: {SEG_MODEL_PATH}\n")
             seg_model = YOLO(SEG_MODEL_PATH)
         else:
             sys.stderr.write(f"[PY][WARNING] Không tìm thấy {SEG_MODEL_PATH}. Dùng yolov8n-seg.pt...\n")
@@ -152,6 +151,7 @@ def process_inpainting(data, lama_model, seg_model):
     if image is None: return {"success": False, "error": "Lỗi Base64"}
 
     try:
+        t_start_mask = time.perf_counter() # Đo thời gian gộp Mask
         # 1. Tìm Mask bong bóng (YOLO)
         bubble_mask = get_bubble_mask_yolo(image, seg_model)
         
@@ -162,14 +162,20 @@ def process_inpainting(data, lama_model, seg_model):
 
         # 3. GỘP CẢ 2 MASK LẠI (Phép cộng)
         combined_mask = cv2.bitwise_or(bubble_mask, vision_mask)
+        t_end_mask = time.perf_counter()
+        print(f"[TIMING] 2a. Make Mask (YOLO Seg + Vision): {t_end_mask - t_start_mask:.3f}s", file=sys.stderr)
                 
         if np.count_nonzero(combined_mask) == 0:
             return {"success": True, "inpaintedImageB64": img_b64, "message": "Không tìm thấy nội dung cần xóa"}
 
         # 4. Inpaint bằng LaMa
+        t_start_lama = time.perf_counter() # Đo thời gian LaMa chạy
         image_pil = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
         mask_pil = Image.fromarray(combined_mask)
         result_pil = lama_model(image_pil, mask_pil)
+        t_end_lama = time.perf_counter()
+        print(f"[TIMING] 2b. Restore Image (LaMa Inpaint): {t_end_lama - t_start_lama:.3f}s", file=sys.stderr)
+        print(f"[TIMING] 2. TOTAL STEPS FOR IMAGE CLEANUP: {t_end_lama - t_start_mask:.3f}s", file=sys.stderr)
         
         result_bgr = cv2.cvtColor(np.array(result_pil), cv2.COLOR_RGB2BGR)
         output_b64 = image_to_base64(result_bgr)

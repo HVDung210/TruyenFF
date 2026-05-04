@@ -14,6 +14,15 @@ if (!fs.existsSync(TEMP_DIR)) {
   fs.mkdirSync(TEMP_DIR, { recursive: true });
 }
 
+const { performance } = require('perf_hooks');
+
+// Hàm tiện ích để ghi log thời gian
+function logExecutionTime(stageName, startTime) {
+    const endTime = performance.now();
+    const duration = ((endTime - startTime) / 1000).toFixed(3); // Đổi sang giây, lấy 3 số thập phân
+    console.log(`[TIMING] ${stageName}: ${duration} seconds`);
+    return endTime; // Trả về thời gian kết thúc để đo tiếp bước sau
+}
 
 // Path to Python scripts (Đảm bảo cả 2 đều được định nghĩa)
 const PY_SCRIPT_DETECT = path.join(__dirname, '..', 'scripts', 'panel_detector_yolo.py');
@@ -66,7 +75,6 @@ const processSingleFile = (file, startTime, scriptPath, panelJson = null) => {
         }
     }
     
-    console.log('[processSingleFile] Spawning python:', pythonCmd, args.slice(0, 3).join(' '), '...');
     const py = spawn(pythonCmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
 
     let stdout = '';
@@ -79,7 +87,6 @@ const processSingleFile = (file, startTime, scriptPath, panelJson = null) => {
     py.stderr.on('data', (data) => {
       const stderrData = data.toString();
       stderr += stderrData;
-      console.log('[PYTHON STDERR]', stderrData.trim());
     });
 
     py.on('close', (code) => {
@@ -500,8 +507,11 @@ exports.generateVideoAI = async (req, res) => {
                 
                 if (imageForAnalysis) {
                     // Gọi Gemini Service (Giữ nguyên logic cũ của bạn)
+                    const tStartGemini = performance.now(); // Bắt đầu đo Gemini
                     const analysis = await geminiService.analyzePanelMotion(imageForAnalysis);
-                    
+                    const tEndGemini = performance.now();
+                    console.log(`[TIMING] 3. Call Gemini API: ${((tEndGemini - tStartGemini) / 1000).toFixed(3)}s`);
+
                     if (analysis && analysis.motion_score) {
                         motionParams.motion_bucket_id = analysis.motion_score;
                         motionParams.fps = analysis.recommended_fps || 7;
@@ -518,6 +528,7 @@ exports.generateVideoAI = async (req, res) => {
                 const imageForVideo = panel.inpaintedImageB64 || panel.croppedImageBase64 || panel.imageB64;
 
                 console.log(`      🚀 Đang gửi sang Kaggle...`);
+                const tStartKaggle = performance.now(); // Bắt đầu đo tổng thời gian chờ Kaggle
                 
                 const response = await axios.post(`${process.env.NGROK_URL}/generate`, { 
                         filesData: [{
@@ -537,6 +548,8 @@ exports.generateVideoAI = async (req, res) => {
                         
                         // 2. POLLING (Đợi kết quả)
                         const jobResultData = await pollJobStatus(jobId);
+                        const tEndKaggle = performance.now(); // Kết thúc đo Kaggle
+                        console.log(`[TIMING] 4. Wait for Kaggle: ${((tEndKaggle - tStartKaggle) / 1000).toFixed(3)}s`);
                         
                         // Lấy kết quả
                         const resultData = jobResultData[0].panels[0];
@@ -763,6 +776,8 @@ exports.mergeFinalVideo = async (req, res) => {
         const outputFileName = `Merged_Full_Chapter_${Date.now()}.mp4`;
         const outputPath = path.join(outputDir, outputFileName);
 
+        const tStartMerge = performance.now(); // Bắt đầu đo FFmpeg
+
         await new Promise((resolve, reject) => {
             const command = ffmpeg();
             let validFilesCount = 0;
@@ -815,6 +830,8 @@ exports.mergeFinalVideo = async (req, res) => {
                     reject(err);
                 })
                 .on('end', () => {
+                    const tEndMerge = performance.now(); // Kết thúc đo FFmpeg
+                    console.log(`[TIMING] 6. Wait for FFmpeg: ${((tEndMerge - tStartMerge) / 1000).toFixed(3)}s`);
                     console.log('✅ Ghép xong:', outputFileName);
                     resolve();
                 })

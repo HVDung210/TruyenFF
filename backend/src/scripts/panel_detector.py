@@ -64,11 +64,17 @@ def detect_panels(gray: np.ndarray) -> List[Tuple[int, int, int, int]]:
 # --- HÀM ĐIỀU PHỐI CHÍNH ---
 def detect(image_bgr: np.ndarray) -> Dict[str, Any]:
     start_time = time.time()
+    start_total = time.perf_counter()
     original, result_img = image_bgr.copy(), image_bgr.copy()
     gray = cv2.cvtColor(original, cv2.COLOR_BGR2GRAY)
     h, w = gray.shape
 
+    t_start_detect = time.perf_counter()
     panel_coords = detect_panels(gray)
+    t_end_detect = time.perf_counter()
+    print(f"[TIMING] 1. Detect Panels: {t_end_detect - t_start_detect:.3f}s", file=sys.stderr)
+    
+    t_start_format = time.perf_counter()
     panels_final = []
     
     for i, (px, py, pw, ph) in enumerate(panel_coords):
@@ -78,9 +84,13 @@ def detect(image_bgr: np.ndarray) -> Dict[str, Any]:
         panels_final.append(panel_info)
 
     duration_ms = int((time.time() - start_time) * 1000)
-    print(f"[PY] Panels detected: {len(panels_final)} | durationMs={duration_ms}", file=sys.stderr)
-
     annotated = encode_image_to_base64(result_img)
+    t_end_format = time.perf_counter()
+    print(f"[TIMING] 2. Format & Encode: {t_end_format - t_start_format:.3f}s", file=sys.stderr)
+    
+    t_end_total = time.perf_counter()
+    print(f"[TIMING] TOTAL STEPS FOR PANEL DETECTION: {t_end_total - start_total:.3f}s", file=sys.stderr)
+    
     return {
         "panelCount": len(panels_final),
         "panels": panels_final,
@@ -93,24 +103,15 @@ def detect(image_bgr: np.ndarray) -> Dict[str, Any]:
 # --- HÀM MAIN ---
 def main():
     sys.stdout.reconfigure(encoding='utf-8')
-    print(f"[PY] Script started with {len(sys.argv)} arguments", file=sys.stderr)
     
     if len(sys.argv) < 2:
-        print("[PY][ERROR] Thiếu đường dẫn ảnh", file=sys.stderr)
         print(json.dumps({"error": "Thiếu đường dẫn ảnh"})); sys.exit(1)
 
     image_path = sys.argv[1]
-    print(f"[PY] Start panel detection image=\"{image_path}\"", file=sys.stderr)
-    print(f"[PY] Arguments: {sys.argv}", file=sys.stderr)
     
     try:
-        print(f"[PY] Bước 1: Đọc ảnh từ {image_path}", file=sys.stderr)
         image = read_image_bgr(image_path)
-        
-        print(f"[PY] Bước 2: Bắt đầu phát hiện panel", file=sys.stderr)
         result = detect(image)
-        
-        print(f"[PY] Bước 3: Hoàn thành xử lý, trả về kết quả", file=sys.stderr)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         sys.exit(0)
         
