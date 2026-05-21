@@ -39,7 +39,7 @@ const TextDetectionTester = ({ files, analysisResults, updateAnalysisResult }) =
         .filter(r => r.detectionData)
         .map(r => ({
           fileName: r.fileName,
-          // ƯU TIÊN LẤY DATA ĐÃ SỬA, NẾU KHÔNG CÓ THÌ LẤY DATA GỐC
+          // Ưu tiên dùng panel đã chỉnh sửa, nếu chưa có thì lấy panel gốc.
           panels: (r.editedDetectionData || r.detectionData).panels
         }));
       
@@ -56,12 +56,12 @@ const TextDetectionTester = ({ files, analysisResults, updateAnalysisResult }) =
           
       if (!res.ok) { throw new Error(data?.error || 'Lỗi'); }
 
-      // Cập nhật state chung (Cả thành công và thất bại)
+      // Đồng bộ kết quả của từng file vào state chung.
       data.results.forEach(result => {
         if (result.success) {
           updateAnalysisResult(result.data.fileName, 'textData', result.data);
         } else {
-          // Lưu cả lỗi vào state chung
+          // Lưu cả kết quả lỗi để hiển thị trong danh sách.
           updateAnalysisResult(result.fileName, 'textData', { error: result.error, fileName: result.fileName, success: false });
         }
       });
@@ -125,7 +125,7 @@ const TextDetectionTester = ({ files, analysisResults, updateAnalysisResult }) =
       </div>
 
 
-      {/* BƯỚC 5: Render dựa trên `resultsToDisplay` */}
+      {/* Kết quả hiển thị được rút gọn từ state chung. */}
       {resultsToDisplay.length > 0 && (
         <div className="space-y-6">
           <div className="flex justify-between items-center">
@@ -163,7 +163,7 @@ const TextDetectionTester = ({ files, analysisResults, updateAnalysisResult }) =
               </div>
 
               {result.success ? (
-                // (Phần này giữ nguyên)
+                // Khối hiển thị kết quả thành công của file.
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                   <div className="lg:col-span-2">
                     <h5 className="text-md font-semibold mb-2 text-blue-300">Ảnh đã đánh dấu</h5>
@@ -197,14 +197,14 @@ const TextDetectionTester = ({ files, analysisResults, updateAnalysisResult }) =
                   </div>
                 </div>
               ) : (
-                // (Phần này giữ nguyên)
+                // Khối hiển thị lỗi xử lý file.
                 <div className="bg-red-900/50 border border-red-700 text-red-200 rounded-lg p-3">
                   <div className="font-semibold mb-1">Lỗi xử lý file</div>
                   <div className="text-sm">{result.error}</div>
                 </div>
               )}
 
-              {/* (Phần này giữ nguyên) */}
+              {/* Danh sách chi tiết từng panel của file. */}
               {result.success && result.data.panels && (
                 <div className="mt-6">
                   <h5 className="text-md font-semibold mb-3 text-blue-300">Chi tiết từng panel</h5>
@@ -257,7 +257,7 @@ const TextDetectionTester = ({ files, analysisResults, updateAnalysisResult }) =
         </div>
       )}
 
-      {/* (Phần Modal giữ nguyên) */}
+      {/* Modal hiển thị chi tiết panel đang được chọn. */}
       {selectedPanel && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">

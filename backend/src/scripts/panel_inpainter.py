@@ -8,13 +8,15 @@ import os
 import time
 from PIL import Image
 
-# --- 1. MONKEY PATCH CHO PILLOW ---
+# Monkey-patch Pillow cho tương thích các phiên bản
 if not hasattr(Image, 'ANTIALIAS'):
     Image.ANTIALIAS = Image.Resampling.LANCZOS
 
-# --- 2. KHỞI TẠO ---
+# --- KHỞI TẠO ---
+# `simple_lama_inpainting` (LaMa) là tùy chọn. Nếu chưa cài, script vẫn chạy
+# nhưng tính năng inpainting sẽ bị vô hiệu. Cài bằng: `pip install simple-lama-inpainting`.
 try:
-    from simple_lama_inpainting import SimpleLama
+    from simple_lama_inpainting import SimpleLama  # type: ignore[import]
     LAMA_AVAILABLE = True
 except ImportError:
     LAMA_AVAILABLE = False
@@ -49,6 +51,15 @@ def load_models():
 
     return lama, seg_model, error
 
+# Chuyển Base64 -> OpenCV BGR image
+def base64_to_image(b64_string):
+    try:
+        img_data = base64.b64decode(b64_string)
+        nparr = np.frombuffer(img_data, np.uint8)
+        return cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    except:
+        return None
+
 def base64_to_image(b64_string):
     try:
         img_data = base64.b64decode(b64_string)
@@ -59,6 +70,9 @@ def base64_to_image(b64_string):
 def image_to_base64(image_bgr):
     _, buffer = cv2.imencode('.jpg', image_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
     return base64.b64encode(buffer).decode('utf-8')
+
+
+# Mở rộng contour bằng offset để bao phủ vùng xung quanh (dùng cho mask)
 
 def expand_contour_with_offset(contour, offset_px=10):
     """
@@ -91,7 +105,7 @@ def get_bubble_mask_yolo(image_bgr, model):
     final_mask = np.zeros((h, w), dtype=np.uint8)
     offset_px = 35
 
-    results = model.predict(image_bgr, conf=0.2, iou=0.4, retina_masks=True, verbose=False)
+    results = model.predict(image_bgr, conf=0.3, iou=0.4, retina_masks=True, verbose=False)
     
     if results[0].masks is not None:
         classes = results[0].boxes.cls.cpu().numpy()
@@ -116,6 +130,8 @@ def get_bubble_mask_yolo(image_bgr, model):
     _, final_mask = cv2.threshold(final_mask, 127, 255, cv2.THRESH_BINARY)
     
     return final_mask
+
+# Tạo mask vùng chữ từ kết quả Vision API (text_blocks là danh sách vertices)
 
 def get_text_mask_vision(image_shape, text_blocks):
     """
@@ -143,6 +159,12 @@ def get_text_mask_vision(image_shape, text_blocks):
     
     return text_mask
 
+
+# Thực hiện quy trình inpainting cho một panel:
+# - Tạo mask (bong bóng + chữ)
+# - Nếu có mask, gọi LaMa để phục hồi ảnh
+# - Trả về Base64 kết quả hoặc lỗi
+
 def process_inpainting(data, lama_model, seg_model):
     img_b64 = data.get('imageB64')
     if not img_b64: return {"success": False, "error": "Thiếu imageB64"}
@@ -155,8 +177,7 @@ def process_inpainting(data, lama_model, seg_model):
         # 1. Tìm Mask bong bóng (YOLO)
         bubble_mask = get_bubble_mask_yolo(image, seg_model)
         
-        # 2. MỚI: Tìm Mask cho chữ lơ lửng (từ textBlocks gửi xuống)
-        # SỬA Ở ĐÂY: Dùng data.get thay vì panel_data.get
+        # 2. Tạo mask cho vùng chữ lấy từ textBlocks.
         text_blocks = data.get('textBlocks', [])
         vision_mask = get_text_mask_vision(image.shape, text_blocks)
 

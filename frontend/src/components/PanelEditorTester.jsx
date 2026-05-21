@@ -1,11 +1,8 @@
-// Tên file: PanelEditorTester.jsx (Đã sửa lỗi hiển thị)
-
-// 1. IMPORT `useCallback` (Rất quan trọng để tránh lỗi lặp vô hạn)
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Stage, Layer, Image, Rect, Transformer } from 'react-konva';
 import useImage from 'use-image';
 
-// Component con 1: Tải ảnh (CÓ callback onImageLoad)
+// Component con: tải ảnh và báo kích thước thật lên component cha.
 const ComicImage = ({ imageUrl, onImageLoad }) => {
   const [image] = useImage(imageUrl, 'Anonymous');
 
@@ -20,7 +17,7 @@ const ComicImage = ({ imageUrl, onImageLoad }) => {
   return <Image image={image} />;
 };
 
-// Component con 2: Khung Panel (Giữ nguyên)
+// Component con: biểu diễn một panel có thể kéo và thay đổi kích thước.
 const PanelBox = ({ shapeProps, isSelected, onSelect, onChange }) => {
   const shapeRef = useRef();
   const trRef = useRef();
@@ -83,20 +80,20 @@ const PanelEditorTester = ({ files, analysisResults, updateAnalysisResult }) => 
   const [imageUrl, setImageUrl] = useState(null);
   const [panels, setPanels] = useState([]);
   const [selectedId, selectShape] = useState(null);
-  // 2. STATE MỚI: Lưu kích thước thật của ảnh
+  // Lưu kích thước thật của ảnh để stage hiển thị đúng tỉ lệ.
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
   const stageRef = useRef(null);
 
   // Load ảnh và panel data khi người dùng chọn một file từ dropdown
   useEffect(() => {
     if (selectedFile) {
-      // 1. Tải file GỐC (sẽ chậm)
+      // Tạo URL tạm để hiển thị ảnh đã chọn.
       const url = URL.createObjectURL(selectedFile);
       setImageUrl(url);
 
-      // 2. Lấy panel data (LOGIC GIỮ KẾT QUẢ CỦA BẠN ĐÂY)
+      // Ưu tiên dùng panel đã chỉnh sửa, nếu chưa có thì lấy panel gốc.
       const result = analysisResults.find(r => r.fileName === selectedFile.name);
-      const panelData = result?.editedDetectionData || result?.detectionData; // <-- Nó ưu tiên data đã sửa
+      const panelData = result?.editedDetectionData || result?.detectionData;
 
       if (panelData && panelData.panels) {
         const konvaPanels = panelData.panels.map(p => ({
@@ -108,10 +105,10 @@ const PanelEditorTester = ({ files, analysisResults, updateAnalysisResult }) => 
         setPanels([]);
       }
 
-      // 3. Cleanup URL
+      // Hủy URL tạm khi component đổi file hoặc unmount.
       return () => URL.revokeObjectURL(url);
     } else {
-      // Dọn dẹp nếu không có file nào được chọn
+      // Reset giao diện khi chưa chọn file.
       setImageUrl(null);
       setPanels([]);
       setImageDimensions({ width: 0, height: 0 });
@@ -122,7 +119,7 @@ const PanelEditorTester = ({ files, analysisResults, updateAnalysisResult }) => 
     const fileName = e.target.value;
     const file = files.find(f => f.name === fileName);
     
-    // 3. RESET kích thước (để hiển thị "Đang tải...")
+    // Đặt lại kích thước để chờ ảnh load xong.
     setImageDimensions({ width: 0, height: 0 }); 
     
     setSelectedFile(file);
@@ -138,7 +135,7 @@ const PanelEditorTester = ({ files, analysisResults, updateAnalysisResult }) => 
         w: Math.round(p.width), h: Math.round(p.height)
     }));
     
-    // 4. LƯU KÍCH THƯỚC: Lưu kích thước ảnh cùng với panel đã sửa
+    // Lưu luôn kích thước ảnh để lần sau render lại đúng khung.
     const originalData = analysisResults.find(r => r.fileName === selectedFile.name)?.detectionData;
     const newEditedData = { 
         ...originalData, 
@@ -152,7 +149,7 @@ const PanelEditorTester = ({ files, analysisResults, updateAnalysisResult }) => 
   };
   
   const handleAddPanel = () => {
-      // 5. Kiểm tra đã tải ảnh xong chưa
+      // Chỉ cho thêm panel khi ảnh đã load xong.
       if (!selectedFile || imageDimensions.width === 0) {
           alert("Vui lòng đợi ảnh tải xong trước khi thêm panel.");
           return;
@@ -162,7 +159,7 @@ const PanelEditorTester = ({ files, analysisResults, updateAnalysisResult }) => 
           ...panels,
           {
               x: 20, y: 20,
-              width: Math.min(100, imageDimensions.width - 40), // Đảm bảo panel mới không quá to
+              width: Math.min(100, imageDimensions.width - 40),
               height: Math.min(100, imageDimensions.height - 40),
               id: newId, stroke: 'red', strokeWidth: 4
           }
@@ -184,7 +181,7 @@ const PanelEditorTester = ({ files, analysisResults, updateAnalysisResult }) => 
     }
   };
 
-  // 6. Dùng `useCallback` để ngăn lỗi lặp vô hạn
+  // Giữ ổn định callback để tránh re-render không cần thiết.
   const handleImageLoad = useCallback(({ width, height }) => {
     setImageDimensions({ width, height });
   }, []); // Dependency array rỗng vì `setImageDimensions` là ổn định
@@ -194,7 +191,7 @@ const PanelEditorTester = ({ files, analysisResults, updateAnalysisResult }) => 
       <h2 className="text-xl font-bold mb-4 text-blue-400 pt-6">Bước 2: Chỉnh sửa Panel</h2>
       
       <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
-        {/* (Thanh công cụ - Giữ nguyên logic <select>) */}
+        {/* Thanh công cụ để chọn ảnh, thêm, xóa và lưu panel. */}
         <div className="flex flex-wrap gap-4 items-center">
             <select onChange={handleFileSelect} className="bg-slate-700 border border-slate-600 rounded p-2 flex-grow min-w-[200px]">
                 <option value="">-- Chọn ảnh để chỉnh sửa --</option>
@@ -211,7 +208,7 @@ const PanelEditorTester = ({ files, analysisResults, updateAnalysisResult }) => 
         )}
       </div>
 
-      {/* 7. SỬA LỖI LAYOUT (THIẾU HEIGHT/WIDTH): */}
+      {/* Khu vực xem trước ảnh và chỉnh sửa panel. */}
       {imageUrl && ( // Nếu có URL (đã chọn file)
         <div 
             className="border border-slate-600 overflow-auto" // THÊM thanh cuộn
@@ -236,7 +233,7 @@ const PanelEditorTester = ({ files, analysisResults, updateAnalysisResult }) => 
             onMouseDown={checkDeselect}
             onTouchStart={checkDeselect}
             ref={stageRef}
-            // Ẩn Stage đi khi đang tải (để tránh lỗi)
+            // Ẩn stage trong lúc chờ ảnh load xong.
             style={{ display: imageDimensions.width > 0 ? 'block' : 'none' }}
           >
             <Layer>

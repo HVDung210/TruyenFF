@@ -21,7 +21,7 @@ const VideoGeneratorTester = ({
   const [loadingMega, setLoadingMega] = useState(false);
   const [megaVideo, setMegaVideo] = useState(null);
   
-  // 1. LOGIC CHUẨN HÓA TEXT (Giữ nguyên)
+  // Chuẩn hóa dữ liệu text để bước sinh audio và video dùng cùng một nguồn.
   const getProcessedTextData = () => {
     return analysisResults
       .map(result => {
@@ -49,19 +49,19 @@ const VideoGeneratorTester = ({
 
   const processedTextResults = getProcessedTextData();
   
-  // Check điều kiện
+  // Điều kiện để bật từng bước xử lý.
   const isReadyForAudio = files.length > 0 && analysisResults.some(r => r.detectionData);
   
-  // Sẵn sàng tạo Video AI: Cần có ảnh Inpaint (hoặc ảnh Crop gốc nếu chưa inpaint)
+  // Bước sinh video AI cần dữ liệu crop hợp lệ.
   const isReadyForAI = analysisResults.length > 0 && analysisResults.every(r => r.cropData);
 
-  // Sẵn sàng ghép Scene: Cần Audio VÀ (Video AI HOẶC Ảnh Crop)
+  // Bước ghép scene cần có audio và dữ liệu ảnh/video tương ứng.
   const isReadyForScenes = videoData.length > 0 && isReadyForAI;
 
-  // Kiểm tra xem có dữ liệu Inpainting không để hiển thị thông báo
+  // Dùng để quyết định có hiển thị trạng thái đã xóa bong bóng hay chưa.
   const hasInpaintedData = analysisResults.some(r => r.inpaintedData);
 
-  // 3. HÀM TẠO AUDIO (Giữ nguyên)
+  // Gọi backend để tạo audio từ text đã chuẩn hóa.
   const handleGenerateAudio = async () => {
     if (!isReadyForAudio) {
       setError('Vui lòng chạy "Bước 1: Phát hiện Panel" trước.');
@@ -96,7 +96,7 @@ const VideoGeneratorTester = ({
     }
   };
 
-  // === HÀM MỚI: GỌI API SVD ===
+  // Gọi API sinh video AI cho từng panel.
   const handleGenerateAIVideo = async () => {
     if (!isReadyForAI) return;
     setLoadingAI(true);
@@ -138,7 +138,7 @@ const VideoGeneratorTester = ({
                         // Nếu không có ảnh inpaint thì gửi null hoặc gửi ảnh gốc
                         inpaintedImageB64: cleanPanel ? cleanPanel.inpaintedImageB64 : null,
                         
-                        // 3. Ảnh mặc định (Fallback) - Ưu tiên ảnh sạch
+                        // 3. Ảnh mặc định (fallback) dùng khi chưa có ảnh inpaint.
                         imageB64: cleanPanel ? cleanPanel.inpaintedImageB64 : p.croppedImageBase64,
                         
                         // 4. Thời lượng audio
@@ -177,10 +177,7 @@ const VideoGeneratorTester = ({
     }
   };
 
-  // ===================================
-  // 4. HÀM MỚI: TẠO SCENES (ĐÃ NÂNG CẤP LOGIC ƯU TIÊN INPAINTING)
-  // ===================================
-  // === CẬP NHẬT HÀM GHÉP SCENE ===
+  // Ghép scene từ video AI hoặc ảnh crop tùy dữ liệu sẵn có.
   const handleGenerateScenes = async () => {
     if (!isReadyForScenes) return;
     setLoadingScenes(true);
@@ -234,7 +231,7 @@ const VideoGeneratorTester = ({
         if (!res.ok) throw new Error(data.error || 'Lỗi tạo scene');
 
         console.log('[FE] Scene Data:', data.data);
-        setSceneData(data.data); // <--- ĐÂY MỚI LÀ VIDEO 7 GIÂY
+        setSceneData(data.data);
         
     } catch (err) {
         console.error(err);
@@ -244,7 +241,7 @@ const VideoGeneratorTester = ({
     }
   };
 
-  // --- HÀM BƯỚC 8.4 ---
+  // Ghép scene với audio để tạo video cuối cùng.
   const handleGenerateFinal = async () => {
     if (sceneData.length === 0) return;
     setLoadingFinal(true);
@@ -285,7 +282,7 @@ const VideoGeneratorTester = ({
         // chứ không phải toàn bộ object finalVideos.
         
         const videoPaths = finalVideos
-            .map(v => v.fullPath || v.finalUrl) // Ưu tiên lấy đường dẫn tuyệt đối nếu có
+            .map(v => v.fullPath || v.finalUrl) // Dùng đường dẫn tuyệt đối nếu đã có.
             .filter(Boolean);
 
         // Gọi API ghép video chung (dùng lại hàm mergeFinalVideo đã viết)
@@ -374,7 +371,7 @@ const VideoGeneratorTester = ({
         </div>
       )}
 
-      {/* BƯỚC 8.2: AI MOTION (SVD) - MỚI */}
+      {/* Bước 8.2: Tạo chuyển động bằng SVD AI. */}
       <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
         <h3 className="text-lg font-semibold text-blue-300 mb-3">Bước 8.2: Tạo Chuyển Động (SVD AI)</h3>
         <p className="text-gray-400 text-sm mb-4">

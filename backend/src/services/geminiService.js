@@ -2,7 +2,7 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 
-// Dùng Gemini 2.5 Flash (Bản mới nhất, đọc ảnh + chữ cực nhanh)
+// Dùng Gemini 2.5 Flash để phân tích ảnh và text nhanh.
 const model = genAI.getGenerativeModel({ 
     model: "gemini-2.5-flash", 
     generationConfig: { responseMimeType: "application/json" },
@@ -14,6 +14,9 @@ const model = genAI.getGenerativeModel({
     ]
 });
 
+// Hàm chính: Phân tích 1 panel (base64) và trả về JSON mô tả mức độ chuyển
+// động (`motion_score`) và `recommended_fps` để pipeline video sử dụng.
+// Input: `imageBase64` (string, JPEG base64). Output: JSON {description, category, motion_score, recommended_fps}.
 exports.analyzePanelMotion = async (imageBase64) => {
   try {
     // Prompt nâng cấp: Kết hợp cả Hình ảnh + Nội dung Text

@@ -42,7 +42,7 @@ const ComicToVideoDashboard = () => {
       fileName: f.name,
       status: "pending",
       detectionData: null,
-      editedDetectionData: null, // <-- STATE MỚI: Lưu kết quả đã chỉnh sửa
+      editedDetectionData: null,
       cropData: null,
       textData: null,
       bubbleData: null,
@@ -50,14 +50,14 @@ const ComicToVideoDashboard = () => {
       editedTextData: null
     }));
     setAnalysisResults(initialResults);
-    // 4. RESET VIDEO DATA KHI THAY ĐỔI FILE
+    // Khi thay đổi bộ ảnh, xóa dữ liệu đã sinh ở các bước trước để tránh lệch state.
     setVideoData([]);
     setSceneData([]);
     setFinalVideos([]);
   };
 
   /**
-   * HÀM MỚI: Callback để các tab con cập nhật state chung
+   * Cập nhật dữ liệu của một file theo từng bước xử lý.
    * @param {string} fileName Tên file
    * @param {'detectionData' | 'cropData' | 'textData' | 'inpaintedData' | 'editedDetectionData' | 'editedTextData'} type Loại dữ liệu
    * @param {object} data Dữ liệu kết quả

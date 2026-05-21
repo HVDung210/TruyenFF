@@ -9,69 +9,8 @@ const path = require('path');
 const TEMP_DIR = path.join(__dirname, '..', 'tmp');
 
 class VideoService {
-
     /**
-     * [PHIÊN BẢN TẠM THỜI ĐỂ TEST]
-     * Luôn tạo video từ ảnh tĩnh (Ken Burns) để bỏ qua bước SVD lâu lắc.
-     */
-    // async createScene(sourceB64, duration, outputFileName, isVideo = false) {
-    //     const videoPath = path.join(TEMP_DIR, outputFileName);
-    //     const videoUrl = `http://localhost:5000/static/${outputFileName}?v=${Date.now()}`;
-        
-    //     // --- [THAY ĐỔI 1]: LUÔN COI LÀ ẢNH (.jpg) ---
-    //     // Dù frontend có gửi cờ isVideo hay không, ta vẫn lưu là ảnh để test nhanh
-    //     const tempInputPath = path.join(TEMP_DIR, `temp_input_${Date.now()}.jpg`);
-    //     const inputBuffer = Buffer.from(sourceB64, 'base64');
-    //     fs.writeFileSync(tempInputPath, inputBuffer);
-
-    //     const resolution_w = "1280";
-    //     const resolution_h = "720";
-    //     const fadeDuration = 0.5;
-    //     const safeDuration = Math.max(duration, 2.0); // Tối thiểu 2s
-
-    //     // --- [THAY ĐỔI 2]: CHỈ DÙNG LỆNH KEN BURNS (ZOOM/PAN) ---
-    //     // Không dùng lệnh Boomerang nữa vì ta không có video đầu vào
-        
-    //     const zoompanDurationFrames = Math.ceil(safeDuration * 25);
-    //     const fadeOutStartTime = safeDuration - fadeDuration;
-
-    //     // Lệnh FFmpeg tạo chuyển động từ ảnh tĩnh
-    //     const command = [
-    //         'ffmpeg',
-    //         '-loop 1',
-    //         `-i "${tempInputPath}"`,
-    //         '-vf',
-    //         // Hiệu ứng Zoom nhẹ (Zoom vào giữa) + Scale HD + Fade In/Out
-    //         `"zoompan=z='min(zoom+0.001,1.15)':d=${zoompanDurationFrames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)',` +
-    //         `scale=w=${resolution_w}:h=${resolution_h}:force_original_aspect_ratio=decrease:flags=lanczos,` +
-    //         `pad=w=${resolution_w}:h=${resolution_h}:x=(ow-iw)/2:y=(oh-ih)/2,` +
-    //         `fade=t=in:st=0:d=${fadeDuration},` +
-    //         `fade=t=out:st=${fadeOutStartTime}:d=${fadeDuration}"`,
-            
-    //         '-c:v libx264',
-    //         '-preset ultrafast', // [QUAN TRỌNG] Dùng ultrafast để test cho nhanh (Giảm chất lượng nén chút xíu nhưng render vèo cái xong)
-    //         '-pix_fmt yuv420p',
-    //         '-t', safeDuration,
-    //         '-y',
-    //         `"${videoPath}"`
-    //     ].join(' ');
-
-    //     try {
-    //         console.log(`[VideoService] [TEST MODE] Đang tạo scene giả lập từ ảnh: ${outputFileName} (${safeDuration}s)`);
-    //         await exec(command);
-            
-    //         if(fs.existsSync(tempInputPath)) fs.unlinkSync(tempInputPath);
-    //         return { videoPath, videoUrl };
-
-    //     } catch (error) {
-    //         console.error(`[VideoService] Lỗi FFmpeg:`, error);
-    //         if(fs.existsSync(tempInputPath)) fs.unlinkSync(tempInputPath);
-    //         throw new Error(`FFmpeg failed: ${error.message}`);
-    //     }
-    // }
-
-    /**
-     * HÀM ĐÃ SỬA LỖI (Bao gồm cả lỗi cú pháp 'x' và lỗi 'ReferenceError')
+     * Tạo một scene video hoàn chỉnh từ dữ liệu base64 đầu vào.
      */
     async createScene(sourceB64, duration, outputFileName, isVideo = false) {
         const videoPath = path.join(TEMP_DIR, outputFileName);
@@ -90,11 +29,8 @@ class VideoService {
         let command = "";
 
         if (isVideo) {
-            // === LOGIC BOOMERANG (VIDEO) ===
-            // Cải tiến:
-            // 1. flags=lanczos: Thuật toán resize sắc nét nhất (tốt khi upscaling)
-            // 2. -crf 17: Chất lượng hình ảnh cực cao (gần như không nén). (Mặc định là 23, càng nhỏ càng nét)
-            // 3. -preset slow: Nén chậm hơn để giữ chi tiết tốt hơn
+            // Dùng video đầu vào để tạo hiệu ứng boomerang (phát rồi đảo ngược).
+            // Lanczos giữ chi tiết tốt hơn khi resize, CRF thấp tăng chất lượng và preset slow ưu tiên chất lượng.
             
             command = [
                 'ffmpeg',
@@ -115,8 +51,8 @@ class VideoService {
             ].join(' ');
 
         } else {
-            // === LOGIC KEN BURNS (ẢNH TĨNH) ===
-            // Cũng áp dụng Lanczos và CRF 17
+            // Dùng ảnh tĩnh để tạo chuyển động kiểu Ken Burns.
+            // Cấu hình resize và nén được giữ ở mức ưu tiên chất lượng.
             const zoompanDurationFrames = safeDuration * 25;
             const fadeOutStartTime = safeDuration - fadeDuration;
 

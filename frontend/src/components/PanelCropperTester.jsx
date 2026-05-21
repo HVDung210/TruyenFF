@@ -35,7 +35,7 @@ const PanelCropperTester = ({ files, analysisResults, updateAnalysisResult }) =>
         .filter(r => r.detectionData)
         .map(r => ({
           fileName: r.fileName,
-          // ƯU TIÊN LẤY DATA ĐÃ SỬA, NẾU KHÔNG CÓ THÌ LẤY DATA GỐC
+          // Ưu tiên dùng panel đã chỉnh sửa, nếu chưa có thì lấy panel gốc.
           panels: (r.editedDetectionData || r.detectionData).panels 
         }));
       
@@ -53,7 +53,7 @@ const PanelCropperTester = ({ files, analysisResults, updateAnalysisResult }) =>
       if (!res.ok) { throw new Error(data?.error || data?.details || 'Lỗi'); }
       
 
-      // Cập nhật state chung (Cả thành công và thất bại)
+      // Đồng bộ kết quả crop của từng file vào state chung.
       data.results.forEach(result => {
         if (result.success) {
           updateAnalysisResult(result.data.fileName, 'cropData', result.data);

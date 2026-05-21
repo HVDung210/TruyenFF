@@ -18,6 +18,9 @@ except ImportError:
     YOLO_AVAILABLE = False
     print("[PY][WARNING] Ultralytics not installed. Using fallback OpenCV method.", file=sys.stderr)
 
+# Đọc file ảnh từ đường dẫn `path` và trả về ảnh dưới dạng BGR numpy array.
+# - Kiểm tra tồn tại file và kích thước trước khi đọc.
+# - Ghi log chi tiết ra `stderr` để tiện debug khi chạy dưới Python từ Node.
 def read_image_bgr(path: str) -> np.ndarray:
     """Đọc ảnh từ đường dẫn và trả về numpy array"""
     try:
@@ -40,14 +43,19 @@ def read_image_bgr(path: str) -> np.ndarray:
     print(f"[PY] Image shape: {image.shape}", file=sys.stderr)
     return image
 
+# Encode một ảnh BGR (numpy array) sang Base64 JPEG.
+# Trả về string Base64 dùng để truyền qua JSON về Node/JS.
 def encode_image_to_base64(image_bgr: np.ndarray) -> str:
     """Encode ảnh (dưới dạng numpy array) thành base64 string"""
     ok, buffer = cv2.imencode('.jpg', image_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
     if not ok: raise ValueError("Lỗi encode ảnh")
     return base64.b64encode(buffer.tobytes()).decode('utf-8')
 
-# --- HÀM DETECT PANELS (Giữ nguyên từ panel_detector_yolo.py) ---
+# --- HÀM DETECT PANELS ---
 
+# Dùng mô hình YOLO để phát hiện bounding boxes của panel.
+# Nếu YOLO không khả dụng thì fallback sang `detect_panels_opencv`.
+# Trả về danh sách tuple (x, y, w, h).
 def detect_panels_yolo(image_bgr: np.ndarray, model_path: str = None) -> List[tuple]:
     if not YOLO_AVAILABLE:
         return detect_panels_opencv(image_bgr)
@@ -55,7 +63,7 @@ def detect_panels_yolo(image_bgr: np.ndarray, model_path: str = None) -> List[tu
         if model_path is None or not os.path.exists(model_path):
             model_path = 'D:/Ky_2/Thuc_tap/TruyenFF/backend/src/scripts/models/finetune_detect.pt'
         model = YOLO(model_path)
-        results = model.predict(source=image_bgr, conf=0.25, iou=0.45, verbose=False)
+        results = model.predict(source=image_bgr, conf=0.3, iou=0.45, verbose=False)
         panels = []
         if len(results) > 0:
             result = results[0]
@@ -69,6 +77,9 @@ def detect_panels_yolo(image_bgr: np.ndarray, model_path: str = None) -> List[tu
         print(f"[PY][ERROR] YOLO detection failed: {str(e)}", file=sys.stderr)
         return detect_panels_opencv(image_bgr)
 
+# Fallback phát hiện panel bằng kỹ thuật xử lý ảnh truyền thống (OpenCV):
+# - Chuyển sang grayscale, adaptive threshold, morphological close
+# - Tìm contours lớn, lọc theo diện tích/tỉ lệ để loại nhiễu
 def detect_panels_opencv(image_bgr: np.ndarray) -> List[tuple]:
     gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
     h, w = gray.shape
@@ -86,12 +97,16 @@ def detect_panels_opencv(image_bgr: np.ndarray) -> List[tuple]:
         panels.append((x, y, pw, ph))
     return panels
 
-# --- HÀM ĐIỀU PHỐI CHÍNH (ĐÃ CẬP NHẬT) ---
+# --- HÀM ĐIỀU PHỐI CHÍNH ---
+# Hàm chính điều phối việc phát hiện và cắt panel.
+# - `panel_coords_json`: nếu cung cấp thì dùng trực tiếp thay vì detect
+# - `use_yolo`: ưu tiên YOLO nếu có mô hình và tùy chọn bật
+# Trả về dict chứa `panels` (mỗi panel kèm base64), kích thước ảnh, thời gian xử lý
 def crop_and_detect(
     image_bgr: np.ndarray, 
     use_yolo: bool = True, 
     model_path: str = None,
-    panel_coords_json: Optional[str] = None # <-- THAM SỐ MỚI
+    panel_coords_json: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Phát hiện, cắt và trả về panels
@@ -126,6 +141,8 @@ def crop_and_detect(
     print(f"[TIMING] 1. Detect Panel ({method}): {t_end_detect - t_start_detect:.3f}s", file=sys.stderr)
     
     # BƯỚC 2: Format kết quả VÀ CẮT ẢNH
+    # Lưu ý: vòng lặp dưới đây cắt region trên ảnh gốc theo tọa độ (x,y,w,h)
+    # và encode sang Base64 để trả về, tránh ghi tạm file trên đĩa.
     t_start_crop = time.perf_counter()
     panels_final = []
     for i, (px, py, pw, ph) in enumerate(panel_coords):

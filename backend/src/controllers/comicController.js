@@ -35,10 +35,9 @@ const PY_SCRIPT_BUBBLE_DETECT = path.join(__dirname, '..', 'scripts', 'bubble_de
  * @param {Object} file - Đối tượng file từ multer
  * @param {Number} startTime - Thời gian bắt đầu (Date.now())
  * @param {string} scriptPath - Đường dẫn đến script Python
- * @param {string | null} panelJson - (MỚI) JSON string của tọa độ panel
+ * @param {string | null} panelJson - JSON string chứa danh sách tọa độ panel, nếu có
  * @returns {Promise<Object>}
  */
-// SỬA LỖI: Thêm `panelJson = null` vào đây
 const processSingleFile = (file, startTime, scriptPath, panelJson = null) => {
   return new Promise((resolve, reject) => {
     const uploadedPath = file.path;
@@ -136,6 +135,7 @@ const processSingleFile = (file, startTime, scriptPath, panelJson = null) => {
 };
 
 // Hàm này gọi processSingleFile (panelJson là null)
+// Handler: Phát hiện panels cho 1 file upload (trả về panel JSON)
 exports.detectPanels = async (req, res) => {
   try {
     if (!req.file) {
@@ -149,7 +149,7 @@ exports.detectPanels = async (req, res) => {
   }
 };
 
-// Hàm này gọi processSingleFile (panelJson là null)
+// Handler: Phát hiện panels cho nhiều file (multipart files)
 exports.detectPanelsMultiple = async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
@@ -181,7 +181,7 @@ exports.detectPanelsMultiple = async (req, res) => {
   }
 };
 
-// Hàm này gọi processSingleFile (panelJson là null)
+// Handler: Crop panels cho nhiều file (sử dụng panel detection hoặc panel_json nếu có)
 exports.cropPanelsMultiple = async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
@@ -215,7 +215,8 @@ exports.cropPanelsMultiple = async (req, res) => {
 
 
 /**
- * HÀM MỚI: Cắt panel từ dữ liệu đã detect
+ * Handler: Cắt panel dựa trên `panelData` đã gửi trong body.
+ * - `panelData` là JSON string chứa danh sách file + panels
  */
 exports.cropFromData = async (req, res) => {
   try {
@@ -270,6 +271,7 @@ exports.cropFromData = async (req, res) => {
   }
 };
 
+// Handler: Tạo audio (TTS) cho các textDataResults gửi từ frontend
 exports.generateAudio = async (req, res) => {
   try {
     // Dữ liệu này được gửi từ VideoGeneratorTester.jsx
@@ -300,6 +302,7 @@ exports.generateAudio = async (req, res) => {
 /**
  * DETECT BUBBLES TRÊN PANEL CROP (JSON INPUT)
  */
+// Handler: Phát hiện bong bóng trên các panel đã crop (nhận `cropData` từ FE)
 exports.detectBubblesMultiple = async (req, res) => {
   try {
     const { cropData } = req.body; // Nhận dữ liệu crop từ frontend
@@ -353,9 +356,10 @@ exports.detectBubblesMultiple = async (req, res) => {
 };
 
 /**
- * [MỚI] HÀM: Xóa bong bóng thoại (Inpainting)
- * Nhận JSON input từ frontend, gọi Python qua STDIN, trả về JSON output.
+ * Xóa bong bóng thoại bằng quy trình inpainting.
+ * Dữ liệu được gửi từ frontend dưới dạng JSON, xử lý qua Python và trả về kết quả JSON.
  */
+// Handler: Xóa bong bóng (inpainting) bằng cách gửi `filesData` sang Python
 exports.removeBubbles = async (req, res) => {
   try {
     const { filesData } = req.body; 
@@ -479,6 +483,7 @@ const pollJobStatus = async (jobId) => {
 /**
  * BƯỚC 7.2: SINH VIDEO AI (LOGIC: ẢNH CROP -> GEMINI | ẢNH INPAINT -> KAGGLE)
  */
+// Handler: Sinh video AI cho từng panel (gọi Gemini để lấy motion, gửi sang Kaggle)
 exports.generateVideoAI = async (req, res) => {
   try {
     const { filesData } = req.body;
@@ -506,7 +511,7 @@ exports.generateVideoAI = async (req, res) => {
                 const imageForAnalysis = panel.croppedImageBase64 || panel.imageB64;
                 
                 if (imageForAnalysis) {
-                    // Gọi Gemini Service (Giữ nguyên logic cũ của bạn)
+                    // Phân tích chuyển động của panel bằng Gemini.
                     const tStartGemini = performance.now(); // Bắt đầu đo Gemini
                     const analysis = await geminiService.analyzePanelMotion(imageForAnalysis);
                     const tEndGemini = performance.now();
@@ -598,6 +603,7 @@ exports.generateVideoAI = async (req, res) => {
 /**
  * BƯỚC 7.3: GHÉP SCENE (XỬ LÝ BOOMERANG / ZOOM)
  */
+// Handler: Ghép scene từ video clip (AI hoặc ảnh crop) -> tạo các scene riêng
 exports.generateScenes = async (req, res) => {
   try {
       const { videoData, cropData } = req.body;
@@ -638,7 +644,7 @@ exports.generateScenes = async (req, res) => {
               }
 
               try {
-                  // Gọi VideoService (đã cập nhật logic Boomerang)
+                  // Tạo scene video bằng VideoService.
                   const { videoUrl } = await videoService.createScene(
                       sourceB64,
                       duration,
@@ -674,6 +680,7 @@ exports.generateScenes = async (req, res) => {
 /**
  * BƯỚC 7.4: TẠO VIDEO HOÀN CHỈNH (MERGE AUDIO + CONCAT)
  */
+// Handler: Tạo final video bằng cách merge audio + scenes (concatenate + mix)
 exports.generateFinalVideo = async (req, res) => {
   try {
       const { sceneData, videoData } = req.body; // sceneData chứa video url, videoData chứa audio url
@@ -751,6 +758,7 @@ exports.generateFinalVideo = async (req, res) => {
  * API: Ghép danh sách các video clip (panel) thành 1 file MP4 hoàn chỉnh
  * Input: { videoPaths: ["/path/to/vid1.mp4", "/path/to/vid2.mp4"] }
  */
+// Handler: Ghép danh sách video clip thành 1 MP4 hoàn chỉnh (dùng FFmpeg)
 exports.mergeFinalVideo = async (req, res) => {
     try {
         const { videoPaths } = req.body;

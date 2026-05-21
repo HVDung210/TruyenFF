@@ -6,9 +6,9 @@ const { exec } = require('child_process');
 
 const execAsync = promisify(exec);
 
-// Thư mục tạm (giống trong comicController.js)
+// Thư mục tạm 
 const TEMP_DIR = path.join(__dirname, '..', 'tmp');
-// Đường dẫn credentials (giống trong textDetectionService.js)
+// Đường dẫn credentials
 const CREDENTIALS_PATH = path.join(__dirname, '..', '..', 'truyenff-466701-6d617a31f7b4.json');
 
 class TextToSpeechService {

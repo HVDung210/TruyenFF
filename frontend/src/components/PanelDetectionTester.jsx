@@ -106,7 +106,7 @@ const PanelDetectionTester = ({ files,analysisResults, updateAnalysisResult }) =
         )}
       </div>
 
-      {/* BƯỚC 4: Render dựa trên `resultsToDisplay` (biến mới) thay vì `results` (state cũ) */}
+      {/* Render kết quả được chuẩn hóa từ state chung. */}
       {resultsToDisplay.length > 0 && (
         <div className="space-y-6">
           <div className="flex justify-between items-center">
@@ -124,7 +124,7 @@ const PanelDetectionTester = ({ files,analysisResults, updateAnalysisResult }) =
             </div>
           </div>
             
-          {/* Map qua `resultsToDisplay` */}
+          {/* Duyệt qua danh sách kết quả đã chuẩn hóa. */}
           {resultsToDisplay.map((result, index) => (
             <div key={index} className="bg-slate-800 border border-slate-700 rounded-xl p-4">
               <div className="flex justify-between items-center mb-4">
@@ -145,7 +145,7 @@ const PanelDetectionTester = ({ files,analysisResults, updateAnalysisResult }) =
               </div>
 
               {result.success ? (
-                // (Phần này giữ nguyên, vì nó đọc từ `result.data`)
+                // Hiển thị chi tiết của file đã xử lý thành công.
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                   <div className="lg:col-span-2">
                     <h5 className="text-md font-semibold mb-2 text-blue-300">Ảnh đã đánh dấu</h5>
@@ -168,7 +168,7 @@ const PanelDetectionTester = ({ files,analysisResults, updateAnalysisResult }) =
                   </div>
                 </div>
               ) : (
-                // (Phần này giữ nguyên, vì nó đọc từ `result.error`)
+                // Hiển thị thông báo lỗi của file thất bại.
                 <div className="bg-red-900/50 border border-red-700 text-red-200 rounded-lg p-3">
                   <div className="font-semibold mb-1">Lỗi xử lý file</div>
                   <div className="text-sm">{result.error}</div>

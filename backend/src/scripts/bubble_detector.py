@@ -18,6 +18,16 @@ def load_model():
         return YOLO(MODEL_PATH)
     return YOLO("yolov8n-seg.pt")
 
+
+# Convert Base64 string sang OpenCV image (BGR)
+def base64_to_image(b64_string):
+    try:
+        img_data = base64.b64decode(b64_string)
+        nparr = np.frombuffer(img_data, np.uint8)
+        return cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    except:
+        return None
+
 def base64_to_image(b64_string):
     try:
         img_data = base64.b64decode(b64_string)
@@ -26,9 +36,13 @@ def base64_to_image(b64_string):
     except: return None
 
 def detect_bubbles_in_panel(image_bgr, model):
+    """Phát hiện bong bóng trong một panel đã crop.
+    - Dùng mô hình segmentation (yolov8 seg) để nhận masks
+    - Chuyển masks sang contours và trả về polygon points cho frontend
+    """
     h, w = image_bgr.shape[:2]
     # Logic giống hệt inpainter để đảm bảo tính nhất quán
-    results = model.predict(image_bgr, conf=0.2, iou=0.4, retina_masks=True, verbose=False)
+    results = model.predict(image_bgr, conf=0.3, iou=0.4, retina_masks=True, verbose=False)
     
     bubbles = []
     if results[0].masks is not None:
@@ -70,6 +84,7 @@ def main():
         
         output_results = []
         
+        # Duyệt từng file và từng panel trong payload (định dạng giống inpainter)
         for file_info in request_data.get('filesData', []):
             processed_panels = []
             for panel in file_info.get('panels', []):

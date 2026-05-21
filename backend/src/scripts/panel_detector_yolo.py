@@ -18,7 +18,7 @@ except ImportError:
     print("[PY][WARNING] Ultralytics not installed. Using fallback OpenCV method.", file=sys.stderr)
 
 
-# --- CÁC HÀM CƠ BẢN --- (Giữ nguyên)
+# --- CÁC HÀM CƠ BẢN ---
 def read_image_bgr(path: str) -> np.ndarray:
     """Đọc ảnh từ đường dẫn và trả về numpy array"""
     try:
@@ -46,7 +46,9 @@ def encode_image_to_base64(image_bgr: np.ndarray) -> str:
     return base64.b64encode(buffer.tobytes()).decode('utf-8')
 
 
-# --- YOLOv12 PANEL DETECTION --- (Giữ nguyên)
+# --- YOLOv12 PANEL DETECTION ---
+# Dùng YOLO để detect bounding boxes của panel.
+# Nếu YOLO không khả dụng thì fallback sang OpenCV.
 def detect_panels_yolo(image_bgr: np.ndarray, model_path: str = None) -> List[tuple]:
     if not YOLO_AVAILABLE:
         return detect_panels_opencv(image_bgr)
@@ -81,7 +83,8 @@ def detect_panels_yolo(image_bgr: np.ndarray, model_path: str = None) -> List[tu
         return detect_panels_opencv(image_bgr)
 
 
-# --- FALLBACK: OPENCV PANEL DETECTION (Phương pháp cũ) --- (Giữ nguyên)
+# --- FALLBACK: OPENCV PANEL DETECTION ---
+# Fallback detection: xử lý ảnh bằng threshold + morphology + contours
 def detect_panels_opencv(image_bgr: np.ndarray) -> List[tuple]:
     gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
     h, w = gray.shape
@@ -103,10 +106,12 @@ def detect_panels_opencv(image_bgr: np.ndarray) -> List[tuple]:
     return panels
 
 
-# --- HÀM ĐIỀU PHỐI CHÍNH (ĐÃ CẬP NHẬT LOGIC SẮP XẾP) ---
+# --- HÀM ĐIỀU PHỐI CHÍNH ---
 def detect(image_bgr: np.ndarray, use_yolo: bool = True, model_path: str = None) -> Dict[str, Any]:
-    """
-    Phát hiện panels trong ảnh comic
+    """Hàm điều phối chính:
+    - Phát hiện panel (YOLO hoặc OpenCV)
+    - Sắp xếp panels theo thứ tự đọc (hàng -> cột)
+    - Trả về danh sách panels và ảnh annotated
     """
     start_time = time.time()
     start_total = time.perf_counter()
@@ -123,12 +128,11 @@ def detect(image_bgr: np.ndarray, use_yolo: bool = True, model_path: str = None)
     t_end_detect = time.perf_counter()
     print(f"[TIMING] 1. Detect Panel ({method}): {t_end_detect - t_start_detect:.3f}s", file=sys.stderr)
 
-    # === CẬP NHẬT KHỐI SẮP XẾP (LOGIC MỚI) ===
+    # Sắp xếp panel theo thứ tự đọc từ trên xuống, trái sang phải.
     t_start_sort = time.perf_counter()
     try:
         if len(panel_coords) > 0:
             
-            # --- LOGIC SẮP XẾP MỚI ---
             # 1. Sắp xếp sơ bộ theo Y (trên xuống)
             panel_coords.sort(key=lambda coord: coord[1])
 
@@ -148,8 +152,7 @@ def detect(image_bgr: np.ndarray, use_yolo: bool = True, model_path: str = None)
                     panel = panel_coords[i]
                     panel_y = panel[1]
                     
-                    # Ngưỡng: Coi là "cùng hàng" nếu Y của panel mới
-                    # nằm trong phạm vi 50% chiều cao của mốc hàng.
+                    # Xem là cùng hàng nếu trục Y của panel mới còn nằm gần mốc hàng hiện tại.
                     threshold = row_anchor_height * 0.5 
                     
                     if panel_y < (row_anchor_y + threshold):
@@ -161,11 +164,11 @@ def detect(image_bgr: np.ndarray, use_yolo: bool = True, model_path: str = None)
                         row_anchor_y = sum(all_y) / len(all_y)
                         row_anchor_height = sum(all_h) / len(all_h)
                     else:
-                        # HÀNG MỚI: Hàng cũ kết thúc, bắt đầu hàng mới
-                        rows.append(current_row) # Lưu hàng cũ
-                        current_row = [panel]    # Hàng mới
-                        row_anchor_y = panel_y   # Đặt lại mốc Y
-                        row_anchor_height = panel[3] # Đặt lại mốc chiều cao
+                        # Bắt đầu một hàng mới khi panel hiện tại lệch xuống rõ rệt.
+                        rows.append(current_row)
+                        current_row = [panel]
+                        row_anchor_y = panel_y
+                        row_anchor_height = panel[3]
                 
                 # Lưu hàng cuối cùng
                 if current_row:
@@ -179,7 +182,6 @@ def detect(image_bgr: np.ndarray, use_yolo: bool = True, model_path: str = None)
                 sorted_panels.extend(row) # Thêm vào danh sách cuối cùng
             
             panel_coords = sorted_panels # Gán lại danh sách đã sắp xếp
-            # --- HẾT LOGIC SẮP XẾP MỚI ---
             
     except Exception as e:
         print(f"[PY][ERROR] Panel sorting failed: {str(e)}", file=sys.stderr)
@@ -188,7 +190,7 @@ def detect(image_bgr: np.ndarray, use_yolo: bool = True, model_path: str = None)
     print(f"[TIMING] 2. Sort Panels: {t_end_sort - t_start_sort:.3f}s", file=sys.stderr)
     
     t_start_format = time.perf_counter()
-    # Format kết quả (Giữ nguyên)
+    # Chuyển danh sách panel thành định dạng JSON trả về cho frontend.
     panels_final = []
     for i, (px, py, pw, ph) in enumerate(panel_coords):
         panel_info = {"id": i + 1, "x": px, "y": py, "w": pw, "h": ph}
@@ -216,7 +218,7 @@ def detect(image_bgr: np.ndarray, use_yolo: bool = True, model_path: str = None)
     }
 
 
-# --- HÀM MAIN --- (Giữ nguyên)
+# --- HÀM MAIN ---
 def main():
     sys.stdout.reconfigure(encoding='utf-8')
     

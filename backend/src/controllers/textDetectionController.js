@@ -135,9 +135,8 @@ class TextDetectionController {
     }
 
     /**
-     * HÀM MỚI
      * POST /api/text-detection/detect-multiple
-     * Detect text trong nhiều comic images được upload
+     * Detect text cho nhiều ảnh comic được upload cùng lúc.
      */
     async detectTextInComicMultiple(req, res) {
         try {
@@ -197,9 +196,8 @@ class TextDetectionController {
     }
 
     /**
-     * HÀM MỚI
      * POST /api/text-detection/detect-from-data
-     * Detect text trong nhiều ảnh dùng panel data có sẵn
+     * Detect text cho nhiều ảnh dựa trên panel data đã có.
      */
     async detectTextFromData(req, res) {
         try {
@@ -236,7 +234,7 @@ class TextDetectionController {
                           console.warn(`[detectTextFromData] Không tìm thấy panelData cho: ${file.originalname}. Sẽ tự động detect.`);
                         }
 
-                        // Gọi service MỚI
+                        // Gọi service để xử lý text detection dựa trên panel data.
                         const result = await textDetectionService.detectTextInComicFromData(file.path, panelJson);
                         
                         if (result.success) {

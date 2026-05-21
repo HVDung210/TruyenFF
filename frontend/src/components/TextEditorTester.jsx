@@ -1,13 +1,10 @@
-// File: src/components/TextEditorTester.jsx
-// TRẠNG THÁI: ĐÃ SỬA LẠI (SỬ DỤNG LOGIC KẾT HỢP STATE)
-
 import React, { useState, useEffect } from 'react';
 
-// Component con (Giữ nguyên)
+// Component con hiển thị và chỉnh text của từng panel.
 const PanelTextInput = ({ panel, onChange }) => {
   const [text, setText] = useState(panel.textContent || '');
 
-  // Cập nhật text nếu prop (từ state cha) thay đổi
+  // Đồng bộ giá trị textarea khi dữ liệu từ cha thay đổi.
   useEffect(() => {
     setText(panel.textContent || '');
   }, [panel.textContent]);
@@ -44,28 +41,26 @@ const TextEditorTester = ({ files, analysisResults, updateAnalysisResult }) => {
   const [currentTextData, setCurrentTextData] = useState(null);
   const [imageUrl, setImageUrl] = useState(null); 
 
-  // 1. SỬA LẠI HOÀN TOÀN LOGIC useEffect (ĐỂ KẾT HỢP STATE)
+  // Kết hợp dữ liệu panel và text để luôn hiển thị phiên bản mới nhất.
   useEffect(() => {
     if (selectedFile) {
       const result = analysisResults.find(r => r.fileName === selectedFile.name);
       if (!result) return;
 
-      // === LOGIC MỚI: KẾT HỢP DATA ===
-
-      // 1. Lấy "Sự thật" về Panel (từ Bước 2 hoặc 1)
+      // Lấy dữ liệu panel mới nhất từ bước chỉnh sửa, nếu có.
       const panelSource = result.editedDetectionData || result.detectionData;
       
-      // 2. Lấy "Sự thật" về Text (từ Bước 5 hoặc 4)
+      // Lấy dữ liệu text đã sửa, nếu người dùng đã cập nhật.
       const textSource = result.editedTextData || result.textData;
 
-      // 3. Nếu không có panel, thoát
+      // Không có panel thì không thể render danh sách text.
       if (!panelSource || !panelSource.panels) {
         setCurrentTextData(null);
         setImageUrl(null);
         return;
       }
 
-      // 4. Tạo danh sách panel mới nhất
+      // Đồng bộ text hiện tại vào từng panel.
       const upToDatePanels = panelSource.panels.map(panel => {
         const existingTextPanel = textSource?.panels.find(p => p.id === panel.id);
         
@@ -73,12 +68,11 @@ const TextEditorTester = ({ files, analysisResults, updateAnalysisResult }) => {
           ...panel, 
           textContent: existingTextPanel?.textContent || "", 
           textDetected: existingTextPanel?.textDetected || false,
-          textBlocks: existingTextPanel?.textBlocks || [] // BẢO TỒN TỌA ĐỘ CHỮ
+          textBlocks: existingTextPanel?.textBlocks || []
         };
       });
 
-      // 5. Tạo một đối tượng 'textData' mới, hợp nhất
-      // Dùng (panelSource || textSource) để đảm bảo có metadata
+      // Tạo object kết quả đã hợp nhất để lưu vào state chung.
       const newMergedData = {
         ...(panelSource || textSource), 
         fileName: panelSource.fileName,
@@ -89,7 +83,7 @@ const TextEditorTester = ({ files, analysisResults, updateAnalysisResult }) => {
       
       setCurrentTextData(newMergedData);
 
-      // === Lấy Ảnh (Logic cũ vẫn đúng) ===
+      // Chọn ảnh chú thích phù hợp để hiển thị ở cột bên trái.
       if (result.textData && result.textData.annotatedImageBase64) {
         setImageUrl(`data:image/jpeg;base64,${result.textData.annotatedImageBase64}`);
       } else if (result.detectionData && result.detectionData.annotatedImageBase64) {
@@ -98,20 +92,20 @@ const TextEditorTester = ({ files, analysisResults, updateAnalysisResult }) => {
         setImageUrl(null);
       }
     } else {
-      // Reset khi không chọn file
+      // Reset khi người dùng bỏ chọn file.
       setCurrentTextData(null);
       setImageUrl(null);
     }
   }, [selectedFile, analysisResults]);
 
-  // 2. Xử lý khi chọn file (Giữ nguyên)
+  // Cập nhật file đang chỉnh khi người dùng đổi lựa chọn.
   const handleFileSelect = (e) => {
     const fileName = e.target.value;
     const file = files.find(f => f.name === fileName);
     setSelectedFile(file);
   };
 
-  // 3. Xử lý khi thay đổi text (Giữ nguyên)
+  // Cập nhật nội dung text của panel đang sửa.
   const handlePanelChange = (panelId, newText) => {
     const updatedPanels = currentTextData.panels.map(p => 
       p.id === panelId ? { ...p, textContent: newText } : p
@@ -129,14 +123,14 @@ const TextEditorTester = ({ files, analysisResults, updateAnalysisResult }) => {
     });
   };
 
-  // 4. Lưu thay đổi (Giữ nguyên)
+  // Ghi dữ liệu đã chỉnh vào state chung để dùng ở bước sau.
   const handleSave = () => {
     if (!selectedFile || !currentTextData) return;
     updateAnalysisResult(selectedFile.name, 'editedTextData', currentTextData);
     alert(`Đã lưu text đã sửa cho file ${selectedFile.name}!`);
   };
   
-  // 5. Sửa lại: Chỉ cần có panel là được
+  // Chỉ cần có dữ liệu panel là đủ để mở tab này.
   const isDataReady = analysisResults.length > 0 && 
                       analysisResults.some(r => r.detectionData); // Chỉ cần có Bước 1
 
@@ -168,11 +162,11 @@ const TextEditorTester = ({ files, analysisResults, updateAnalysisResult }) => {
         )}
       </div>
 
-      {/* Layout 2 cột (Giữ nguyên) */}
+      {/* Bố cục hai cột: ảnh bên trái, danh sách text bên phải. */}
       {selectedFile && currentTextData && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           
-          {/* CỘT BÊN TRÁI: HIỂN THỊ ẢNH */}
+          {/* Cột trái: ảnh chú thích. */}
           <div className="lg:col-span-1">
             <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
               <h3 className="text-lg font-semibold text-blue-300 mb-4">
@@ -193,7 +187,7 @@ const TextEditorTester = ({ files, analysisResults, updateAnalysisResult }) => {
             </div>
           </div>
 
-          {/* CỘT BÊN PHẢI: SỬA TEXT (Giờ sẽ hiển thị đúng số panel) */}
+          {/* Cột phải: danh sách panel để chỉnh text. */}
           <div className="lg:col-span-1">
             <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
               <h3 className="text-lg font-semibold text-blue-300 mb-4">
@@ -214,7 +208,7 @@ const TextEditorTester = ({ files, analysisResults, updateAnalysisResult }) => {
         </div>
       )}
       
-      {/* Các thông báo (Giữ nguyên) */}
+      {/* Thông báo khi chưa chọn file hoặc chưa có dữ liệu panel. */}
       {!selectedFile && isDataReady && (
          <div className="text-center text-gray-400 py-10">
           Vui lòng chọn một file từ dropdown để bắt đầu sửa text.

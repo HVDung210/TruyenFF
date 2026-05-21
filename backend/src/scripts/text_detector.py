@@ -61,7 +61,11 @@ def crop_panel(image_bgr: np.ndarray, x: int, y: int, w: int, h: int) -> np.ndar
     return image_bgr[y:y+h, x:x+w]
 
 def call_vision_api(image_base64: str, credentials_path: str) -> Dict[str, Any]:
-    """Gọi Google Cloud Vision API để detect text"""
+    """Gọi Google Cloud Vision (qua script Node) để truy xuất text blocks.
+
+    - Lưu ảnh tạm ra file, gọi `vision_text_detector.js` để tận dụng client JS.
+    - Trả về JSON đã parse hoặc ném lỗi khi call/parse thất bại.
+    """
     try:
         with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as temp_file:
             image_data = base64.b64decode(image_base64)
@@ -114,11 +118,9 @@ def call_vision_api(image_base64: str, credentials_path: str) -> Dict[str, Any]:
         raise
 
 
-# --- YOLOv12 PANEL DETECTION (MỚI) ---
+# --- YOLOv12 PANEL DETECTION ---
 def detect_panels_yolo(image_bgr: np.ndarray, model_path: str = None) -> List[tuple]:
-    """
-    Phát hiện panels bằng YOLOv12 model
-    """
+    """Phát hiện panels bằng YOLOv12 model. Trả về list (x,y,w,h)."""
     if not YOLO_AVAILABLE:
         return detect_panels_opencv(image_bgr)
     
@@ -127,7 +129,7 @@ def detect_panels_yolo(image_bgr: np.ndarray, model_path: str = None) -> List[tu
             model_path = 'D:/Ky_2/Thuc_tap/TruyenFF/backend/src/scripts/models/finetune_detect.pt'
         
         model = YOLO(model_path)
-        results = model.predict(source=image_bgr, conf=0.25, iou=0.45, verbose=False)
+        results = model.predict(source=image_bgr, conf=0.3, iou=0.45, verbose=False)
         
         panels = []
         if len(results) > 0:
@@ -148,11 +150,9 @@ def detect_panels_yolo(image_bgr: np.ndarray, model_path: str = None) -> List[tu
         return detect_panels_opencv(image_bgr)
 
 
-# --- FALLBACK: OPENCV PANEL DETECTION (ĐÃ CẬP NHẬT) ---
+# --- FALLBACK: OPENCV PANEL DETECTION ---
 def detect_panels_opencv(image_bgr: np.ndarray) -> List[tuple]:
-    """
-    Phát hiện panels bằng OpenCV (phương pháp cũ - fallback)
-    """
+    """Fallback detection bằng OpenCV: threshold -> morphology -> contours."""
     gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
     h, w = gray.shape
     
@@ -184,8 +184,13 @@ def get_distance(px, py, rect):
     cx, cy = rx + rw/2, ry + rh/2
     return math.hypot(px - cx, py - cy)
 
-# --- HÀM ĐIỀU PHỐI CHÍNH (ĐÃ CẬP NHẬT) ---
+# --- HÀM ĐIỀU PHỐI CHÍNH ---
 def detect_text_in_comic(image_bgr, credentials_path, model_path=None, panel_coords_json=None):
+    """Hàm điều phối text-detection:
+    - Phát hiện panels (hoặc dùng panel_json nếu có)
+    - Gọi Vision API để lấy text blocks
+    - Gán từng text block vào panel gần nhất và trả về cấu trúc panels
+    """
     start_time = time.time()
     start_total = time.perf_counter()
     h, w, _ = image_bgr.shape

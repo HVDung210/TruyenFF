@@ -6,17 +6,18 @@ const { promisify } = require('util');
 const execAsync = promisify(exec);
 
 class TextDetectionService {
+    // Khởi tạo service: chứa các đường dẫn đến script Python/Node cần gọi.
     constructor() {
         this.scriptsDir = path.join(__dirname, '..', 'scripts');
         this.scriptPath = path.join(this.scriptsDir, 'text_detector.py');
-        this.nodeScriptPath = path.join(this.scriptsDir, 'vision_text_detector.js'); //
+        this.nodeScriptPath = path.join(this.scriptsDir, 'vision_text_detector.js');
         this.credentialsPath = path.join(__dirname, '..', '..', 'truyenff-466701-6d617a31f7b4.json');
     }
 
     /**
-     * HÀM MỚI: Detect text dùng tọa độ panel có sẵn
+     * Detect text bằng dữ liệu panel có sẵn thay vì tự tìm panel từ đầu.
      * @param {string} imagePath - Đường dẫn đến file ảnh
-     * @param {string | null} panelJson - (MỚI) JSON string của tọa độ
+     * @param {string | null} panelJson - JSON string chứa tọa độ panel
      * @returns {Promise<Object>} Kết quả text detection
      */
     async detectTextInComicFromData(imagePath, panelJson = null) {
@@ -37,7 +38,7 @@ class TextDetectionService {
             // Xây dựng command
             // Tham số script: <image_path> <credentials_path> [model_path] [panel_json_string]
             const commandItems = [
-                'python', // Giữ nguyên 'python' như file gốc
+                'python',
                 `"${this.scriptPath}"`,
                 `"${imagePath}"`,
                 `"${this.credentialsPath}"`,
@@ -93,23 +94,23 @@ class TextDetectionService {
     }
 
     /**
-     * HÀM CŨ (ĐÃ CẬP NHẬT)
-     * Detect text trong comic image (tự động detect panel)
+     * Detect text trong ảnh comic bằng cách tự động phát hiện panel.
      * @param {string} imagePath - Đường dẫn đến file ảnh
      * @returns {Promise<Object>} Kết quả text detection
      */
     async detectTextInComic(imagePath) {
-        // Hàm này giờ là một wrapper, gọi hàm mới với panelJson = null
+        // Wrapper này giữ API cũ và chuyển sang luồng xử lý dùng panelJson.
         return this.detectTextInComicFromData(imagePath, null);
     }
 
     /**
-     * Detect text trong một panel cụ thể
-     * (Hàm này giữ nguyên - phục vụ route /detect-panel)
+     * Detect text trong một panel cụ thể.
      * @param {string} imagePath - Đường dẫn đến file ảnh
      * @param {Object} panel - Panel info {x, y, w, h}
      * @returns {Promise<Object>} Kết quả text detection cho panel
      */
+    // Detect text trong một panel cụ thể bằng cách tạo một script Python tạm
+    // để crop region rồi gọi Vision API.
     async detectTextInPanel(imagePath, panel) {
         try {
             console.log(`[TextDetectionService] Detecting text in single panel:`, panel);
@@ -152,8 +153,13 @@ class TextDetectionService {
     }
 
     /**
-     * Tạo script tạm để detect text trong một panel
-     * (Hàm này giữ nguyên)
+     * Tạo script Python tạm để:
+     * - Crop panel theo tọa độ `panel`
+     * - Gọi Node helper (`vision_text_detector.js`) với đường dẫn ảnh tạm và
+     *   đường dẫn credentials JSON.
+     *
+     * Chú ý: script này nhúng trực tiếp `credentials_path`. Nếu bạn chuyển sang
+     * dùng API key, cần thay phần gọi Node phù hợp.
      */
     createPanelDetectionScript(imagePath, panel) {
         const nodeScriptAbsPath = this.nodeScriptPath.replace(/\\/g, '\\\\');
@@ -248,8 +254,7 @@ if __name__ == '__main__':
     }
 
     /**
-     * Batch detect text trong nhiều images
-     * (Hàm này giữ nguyên - phục vụ route /batch-detect)
+     * Batch detect text cho nhiều ảnh.
      * @param {Array<string>} imagePaths - Danh sách đường dẫn ảnh
      * @returns {Promise<Array<Object>>} Kết quả cho từng ảnh
      */
@@ -258,7 +263,7 @@ if __name__ == '__main__':
         
         for (const imagePath of imagePaths) {
             try {
-                // Gọi hàm detectTextInComic (hàm cũ) để tự động detect panel
+                // Dùng luồng detect panel tự động để xử lý từng ảnh.
                 const result = await this.detectTextInComic(imagePath);
                 results.push({
                     imagePath,
